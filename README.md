@@ -11,6 +11,19 @@ One card is one screen. Put each on its own panel view:
 
 It is a single plain JavaScript file with no dependencies.
 
+## Screenshots
+
+Taken on the Echo Show 5 at 960 × 480 device pixels. The calendar titles are blurred.
+
+| | |
+|---|---|
+| ![Glance](docs/glance.png) | ![Lights](docs/lights.png) |
+| Glance | Lights |
+| ![Sockets](docs/sockets.png) | ![Heating](docs/heating.png) |
+| Sockets | Heating |
+| ![Alerts](docs/alerts.png) | |
+| Alerts | |
+
 ## Install
 
 Add `https://github.com/drae/expressive-kiosk-card` to HACS as a custom repository of type **Dashboard** and download it. HACS registers the resource.
