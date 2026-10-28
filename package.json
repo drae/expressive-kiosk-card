@@ -1,0 +1,13 @@
+{
+  "name": "expressive-kiosk-card",
+  "private": true,
+  "description": "Small-screen kiosk card for Home Assistant: a Glance home with Froggy, calendar and totals, plus lights, sockets, heating and alerts screens",
+  "license": "BSD-3-Clause",
+  "author": "Paul Owen",
+  "scripts": {
+    "test": "for f in tests/*.test.js; do echo \"# $f\"; node \"$f\" || exit 1; done"
+  },
+  "devDependencies": {
+    "jsdom": "24.1.3"
+  }
+}
