@@ -45,7 +45,7 @@
  * Locked entities are never switched, including by All off.
  */
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 const HOURS_SHOWN = 4;
 const EVENTS_SHOWN = 3;
 const CAL_DAYS = 7;
@@ -191,7 +191,7 @@ const CSS_TEXT = `
   .goff svg { width: 18px; height: 18px; }
   .goff.on { background: var(--amber); color: #fff; }
   .goff[disabled] { cursor: default; }
-  .gitems { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex: none; }
+  .gitems { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; flex: none; }
   .empty { font-size: 18px; color: var(--sub); margin: auto; }
 
   /* Heating */
