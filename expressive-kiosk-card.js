@@ -45,7 +45,7 @@
  * Locked entities are never switched, including by All off.
  */
 
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 const HOURS_SHOWN = 4;
 const EVENTS_SHOWN = 3;
 const CAL_DAYS = 7;
@@ -354,7 +354,7 @@ class ExpressiveKioskCard extends HTMLElement {
     for (const it of items) byArea.set(it.area, [...(byArea.get(it.area) ?? []), it]);
     const rank = (a) => (order.includes(a) ? order.indexOf(a) : order.length);
     return [...byArea.entries()]
-      .map(([area, its]) => ({ area, name: this._areaName(area), items: its.sort((x, y) => x.name.localeCompare(y.name)) }))
+      .map(([area, its]) => ({ area, name: this._areaName(area), items: its.sort((x, y) => x.name.localeCompare(y.name, undefined, { numeric: true })) }))
       .sort((x, y) => rank(x.area) - rank(y.area) || x.name.localeCompare(y.name));
   }
 
