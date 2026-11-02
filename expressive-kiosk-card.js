@@ -92,7 +92,7 @@
  * Lights use expressive-slider-card when it is installed, plain tiles until it loads.
  */
 
-const VERSION = "0.5.1";
+const VERSION = "0.5.2";
 const EVENTS_SHOWN = 1;
 const CAL_DAYS = 7;
 const CAL_REFRESH = 15 * 60000;
@@ -292,6 +292,7 @@ const CSS_TEXT = `
   .wrow em, .wrow span { align-self: baseline; font-size: var(--fs-axis); line-height: 1; }
   .wrow em { font-style: normal; color: var(--rain); justify-self: center; }
   .wrow span { color: var(--sub); }
+  .wrow b, .wrow span { justify-self: start; text-align: left; } /* the line is a button, which centres text */
   .nxl .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .dot { width: 12px; height: 12px; border-radius: 100%; display: inline-block; flex: none; }
   .apill { position: absolute; top: 16px; right: 16px; height: 48px; border-radius: 24px; border: 0; background: var(--alert); padding: 0 18px 0 12px;
