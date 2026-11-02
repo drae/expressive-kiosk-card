@@ -93,7 +93,7 @@
  * Lights use expressive-slider-card when it is installed, plain tiles until it loads.
  */
 
-const VERSION = "0.6.1";
+const VERSION = "0.6.2";
 const EVENTS_SHOWN = 1;
 const CAL_DAYS = 7;
 const CAL_REFRESH = 15 * 60000;
@@ -905,24 +905,22 @@ class ExpressiveKioskCard extends HTMLElement {
     return s;
   }
 
-  // The sun's true path to one scale: day arc in amber, the sun hidden below the horizon, the night path fading towards -18°
+  // The sun's true path to one scale: day arc in amber, the sun hidden below the horizon, the night path fading out towards the bottom
   _sunPanel() {
     const s = this._sun();
     if (!s) return null;
     const W = SUN_W, H = SUN_H, hz = SUN_HZ, a0 = s.noon - 720, a1 = s.noon + 720;
     const path = (a, b) => { let d = ""; for (let m = a; ; m += 5) { const mm = Math.min(m, b); d += `${d ? "L" : "M"}${fx(8 + (mm - s.noon + 720) / 1440 * (W - 16))} ${fx(s.y(mm))}`; if (mm >= b) break; } return d; };
     const sides = `mask="url(#ekc-sides)"`;
-    const depths = [6, 12, 18].map((d, i) => `<rect x="0" y="${fx(hz + d * s.k - 0.5)}" width="${W}" height="1" fill="rgba(255, 255, 255, ${[0.1, 0.07, 0.045][i]})"/>`).join("");
     const time = (m, d) => `<text x="${fx(s.x(m))}" y="${hz + 20}" text-anchor="middle" style="font-size:var(--fs-axis);fill:var(--sub)">${hhmm(d)}</text>`;
     return `<svg class="sunpath" viewBox="0 0 ${W} ${H}" aria-hidden="true">
       <defs>
-        <linearGradient id="ekc-fadeg" gradientUnits="userSpaceOnUse" x1="0" y1="${hz}" x2="0" y2="${fx(hz + 18 * s.k)}"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        <linearGradient id="ekc-fadeg" gradientUnits="userSpaceOnUse" x1="0" y1="${hz}" x2="0" y2="${H}"><stop offset="0" stop-color="#fff"/><stop offset=".45" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
         <mask id="ekc-fade" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect x="0" y="${hz + 1}" width="${W}" height="${H}" fill="url(#ekc-fadeg)"/></mask>
         <linearGradient id="ekc-sidesg" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".2" stop-color="#fff"/><stop offset=".8" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
         <mask id="ekc-sides" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect x="0" y="0" width="${W}" height="${H}" fill="url(#ekc-sidesg)"/></mask>
         <clipPath id="ekc-sky"><rect x="0" y="0" width="${W}" height="${hz - 1}"/></clipPath>
       </defs>
-      <g ${sides}>${depths}</g>
       <path d="${path(s.rise, s.set)}L${fx(s.x(s.set))} ${hz}L${fx(s.x(s.rise))} ${hz}Z" fill="rgba(240, 160, 75, .14)"/>
       <path d="${path(a0, a1)}" fill="none" stroke="var(--sub)" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round" mask="url(#ekc-fade)"/>
       <path d="${path(s.rise, s.set)}" fill="none" stroke="var(--temp)" stroke-width="3" stroke-linecap="round"/>
