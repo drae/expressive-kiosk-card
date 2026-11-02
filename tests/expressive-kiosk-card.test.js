@@ -125,18 +125,18 @@ const text = (el) => el?.textContent.replace(/\s+/g, " ").trim();
 
   // Home
   ok(/^\d\d:\d\d$/.test(text($(c, ".tm"))), "clock");
-  ok($$(c, ".cyc").length === 3 && $$(c, ".cyc")[0].classList.contains("on"), "three panels, the first showing");
-  ok($(c, ".cyc .sunpath") && text($(c, ".sunpath")).includes("07:00") && text($(c, ".sunpath")).includes("16:30"), "sun path with sunrise and sunset times");
+  ok($$(c, ".dt .cyc").length === 3 && $$(c, ".cyc")[0].classList.contains("on") && /\d/.test(text($$(c, ".cyc")[0])), "date line takes three turns, the date first");
+  ok($(c, ".cycwrap .sunpath") && text($(c, ".sunpath")).includes("07:00") && text($(c, ".sunpath")).includes("16:30"), "sun path with sunrise and sunset times");
   {
     const xs = $$(c, ".sunpath text").map((e) => Number(e.getAttribute("x")));
     ok(Math.abs((xs[0] + xs[1]) / 2 - 322) < 1, "sun path centred on solar noon");
   }
-  ok($$(c, ".hstrip > div").length === 7 && text($(c, ".hstrip > div")).startsWith("Now"), "next seven hours, Now first");
-  ok($(c, ".hstrip img").getAttribute("src").startsWith("http://ha/local/custom/weather/icons/icon_"), "hourly icons from the icon path");
-  const nxt = text($(c, ".nxt"));
+  ok($$(c, ".wrow > div").length === 7 && text($(c, ".wrow .tx span")) === "Now", "next seven hours, Now first");
+  ok($(c, ".wrow .iu img").getAttribute("src").startsWith("http://ha/local/custom/weather/icons/icon_"), "hourly icons from the icon path");
+  const nxt = text($(c, ".nxl"));
   ok(nxt.includes("Mixed recycling and Food waste") && nxt.includes("Bin out tonight"), "next up: bins tomorrow, out tonight");
-  ok($$(c, ".nxt .dot").length === 2, "a dot per coloured collection");
-  click($(c, ".cycwrap"));
+  ok($$(c, ".nxl .dot").length === 2, "a dot per coloured collection");
+  click($(c, ".dt"));
   ok($$(c, ".cyc")[1].classList.contains("on") && $$(c, ".cdots i")[1].classList.contains("on"), "tap moves to the next panel");
   c.hass = { ...hass(), states: { ...states, "sensor.count_lights_on": { ...st("3"), last_updated: "t1" } } };
   ok($$(c, ".cyc")[1].classList.contains("on"), "a state update keeps the current panel");
@@ -148,7 +148,7 @@ const text = (el) => el?.textContent.replace(/\s+/g, " ").trim();
   ok(nav === "/k/alerts", "alert pill opens Alerts");
   states["media_player.show"] = st("playing", { media_title: "Everywhere", media_artist: "Fleetwood Mac", media_album_name: "Magic Radio" });
   c.hass = hass();
-  ok($(c, ".np") && !$(c, ".cycwrap") && text($(c, ".np .npa")) === "Fleetwood Mac · Magic Radio", "now playing replaces the panels while playing");
+  ok($(c, ".np") && !$(c, ".cycwrap") && text($(c, ".np .npa")) === "Fleetwood Mac · Magic Radio", "now playing replaces the sun path while playing");
   click($(c, ".np"));
   ok(JSON.stringify(calls.at(-1)) === JSON.stringify(["switch", "turn_on", { entity_id: "switch.now_playing" }]), "tile opens Kiosk Satellite now playing");
   c.remove();

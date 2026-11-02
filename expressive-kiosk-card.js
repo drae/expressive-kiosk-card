@@ -18,7 +18,7 @@
  *     energy: /kitchen-show/energy
  *     alerts: /kitchen-show/alerts
  *   home:
- *     cycle: 20                  # seconds each Home panel shows: sun path, next hours, next up
+ *     cycle: 20                  # seconds each turn of the line under the clock shows: date, next hours, next up
  *   climate: climate.thermostat
  *   climate_name: Hallway thermostat
  *   boost:                       # hive.boost_heating_on when it exists, else the boost preset
@@ -92,7 +92,7 @@
  * Lights use expressive-slider-card when it is installed, plain tiles until it loads.
  */
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 const EVENTS_SHOWN = 1;
 const CAL_DAYS = 7;
 const CAL_REFRESH = 15 * 60000;
@@ -274,28 +274,26 @@ const CSS_TEXT = `
   .glow { position: absolute; left: 0; right: 0; pointer-events: none; }
   .night { position: absolute; left: 32px; width: calc(100% - 64px); pointer-events: none; overflow: hidden; }
   .tm { font-size: var(--fs-clock); font-weight: 500; line-height: .9; letter-spacing: -0.02em; }
-  .dt { font-size: var(--fs-title); color: var(--soft); margin-top: 16px; }
+  .dt { position: relative; width: 100%; height: 40px; margin-top: 14px; border: 0; padding: 0; background: none; cursor: pointer; }
   .cycwrap { position: absolute; left: 0; right: 0; bottom: 0; height: 190px; border: 0; padding: 0; background: none; cursor: pointer; }
-  .cyc { position: absolute; inset: 0; opacity: 0; transition: opacity .8s ease; }
+  .cyc { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; opacity: 0; transition: opacity .8s ease;
+         padding: 0 32px; font-size: var(--fs-title); color: var(--soft); white-space: nowrap; }
   .cyc.on { opacity: 1; }
   .cdots { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; justify-content: center; gap: 8px; pointer-events: none; }
   .cdots i { width: 8px; height: 8px; border-radius: 100%; background: var(--line); transition: background-color .8s; }
   .cdots i.on { background: var(--sub); }
   .sunpath { position: absolute; left: 32px; right: 32px; bottom: 28px; height: 150px; width: calc(100% - 64px); }
   .sunpath text, .chart text, .echart text { font-family: inherit; }
-  .hstrip { position: absolute; left: 32px; right: 32px; bottom: 36px; display: grid; grid-template-columns: repeat(${STRIP_HOURS}, 1fr); }
-  .hstrip div { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-  .hstrip span { font-size: var(--fs-text); color: var(--sub); }
-  .hstrip img { width: 40px; height: 40px; }
-  .hstrip b { font-size: var(--fs-value); font-weight: 600; }
-  .hstrip em { font-style: normal; font-size: var(--fs-axis); color: var(--rain); height: 17px; }
-  .nxt { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); display: flex; align-items: center; gap: 16px; max-width: calc(100% - 64px);
-         background: var(--well); border-radius: 24px; padding: 12px 24px 12px 12px; text-align: left; }
-  .nxt .nd { width: 64px; height: 64px; border-radius: 16px; background: var(--tile); display: flex; flex-direction: column; align-items: center; justify-content: center; flex: none; }
-  .nxt .nd b { font-size: var(--fs-title); font-weight: 600; line-height: 1; }
-  .nxt .nd span { font-size: var(--fs-axis); color: var(--sub); text-transform: uppercase; letter-spacing: .06em; }
-  .nxt .nt { font-size: var(--fs-value); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .nxt .ns { font-size: var(--fs-text); color: var(--sub); display: flex; align-items: center; gap: 6px; }
+  /* next hours in the date line: icon with rain chance centred under it, then temperature over hour */
+  .wrow { display: grid; grid-template-columns: repeat(${STRIP_HOURS}, 88px); }
+  .wrow > div { display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .wrow .iu { display: flex; flex-direction: column; align-items: center; width: 36px; }
+  .wrow img { width: 32px; height: 32px; margin-top: -2px; }
+  .wrow em { font-style: normal; font-size: var(--fs-axis); color: var(--rain); line-height: 1; height: 14px; margin-top: -7px; }
+  .wrow .tx { line-height: 1.18; text-align: left; }
+  .wrow b { font-size: var(--fs-text); font-weight: 600; color: #fff; }
+  .wrow .tx > span { display: block; font-size: var(--fs-axis); color: var(--sub); margin-top: 1px; }
+  .nxl .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .dot { width: 12px; height: 12px; border-radius: 100%; display: inline-block; flex: none; }
   .apill { position: absolute; top: 16px; right: 16px; height: 48px; border-radius: 24px; border: 0; background: var(--alert); padding: 0 18px 0 12px;
            display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-text); font-weight: 600; cursor: pointer; z-index: 2; }
@@ -858,12 +856,14 @@ class ExpressiveKioskCard extends HTMLElement {
     const date = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
     const al = this._activeAlerts();
     const pill = al.length ? `<button type="button" class="apill" data-go="alerts">${IC.alert}${esc(al.length === 1 ? al[0].name : `${al.length} alerts`)}</button>` : "";
-    const np = this._nowPlaying();
-    const panels = [this._sunPanel(), this._stripPanel(), this._nextPanel()].filter(Boolean);
-    if (this._cyc >= panels.length) this._cyc = 0;
-    const lower = np ?? (panels.length ? `<button type="button" class="cycwrap" data-act="cycle" aria-label="Next panel">${panels.map((p, i) => `<div class="cyc${i === this._cyc ? " on" : ""}">${p}</div>`).join("")}</button>
-      ${panels.length > 1 ? `<div class="cdots">${panels.map((_, i) => `<i class="${i === this._cyc ? "on" : ""}"></i>`).join("")}</div>` : ""}` : "");
-    return `<div class="hm">${this._skyGlow()}${this._night()}<div class="tm n">${hhmm(now)}</div><div class="dt">${esc(date)}</div>${lower}</div>${pill}`;
+    // the line under the clock takes turns: date, next hours, next up; the sun path stays below
+    const turns = [esc(date), this._stripPanel(), this._nextPanel()].filter(Boolean);
+    if (this._cyc >= turns.length) this._cyc = 0;
+    const line = `<button type="button" class="dt" data-act="cycle" aria-label="Next">${turns.map((p, i) => `<div class="cyc${i === this._cyc ? " on" : ""}">${p}</div>`).join("")}</button>`;
+    const dots = turns.length > 1 ? `<div class="cdots">${turns.map((_, i) => `<i class="${i === this._cyc ? "on" : ""}"></i>`).join("")}</div>` : "";
+    const sun = this._sunPanel();
+    const lower = this._nowPlaying() ?? (sun ? `<button type="button" class="cycwrap" data-act="cycle" aria-label="Next">${sun}</button>` : "");
+    return `<div class="hm">${this._skyGlow()}${this._night()}<div class="tm n">${hhmm(now)}</div>${line}${lower}${dots}</div>${pill}`;
   }
 
   _sun() {
@@ -963,8 +963,8 @@ class ExpressiveKioskCard extends HTMLElement {
     const hrs = this._hourly().slice(0, STRIP_HOURS);
     if (!hrs.length) return null;
     const days = this._sunDays();
-    return `<div class="hstrip">${hrs.map((h, i) => `<div><span class="n">${i ? pad(h.d.getHours()) : "Now"}</span><img src="${esc(this._url(this._icon(h.c, this._isDay(h.d, days))))}" alt="">
-      <b class="n">${Math.round(Number(h.t))}°</b><em class="n">${Number(h.p) ? `${h.p}%` : ""}</em></div>`).join("")}</div>`;
+    return `<div class="wrow">${hrs.map((h, i) => `<div><span class="iu"><img src="${esc(this._url(this._icon(h.c, this._isDay(h.d, days))))}" alt="">
+      <em class="n">${Number(h.p) ? `${h.p}%` : ""}</em></span><span class="tx"><b class="n">${Math.round(Number(h.t))}°</b><span class="n">${i ? `${pad(h.d.getHours())}:00` : "Now"}</span></span></div>`).join("")}</div>`;
   }
 
   _nextPanel() {
@@ -975,8 +975,7 @@ class ExpressiveKioskCard extends HTMLElement {
     let when = day.getTime() === today.getTime() ? "Today" : day.getTime() === tomorrow.getTime() ? "Tomorrow" : e.when.toLocaleDateString("en-GB", { weekday: "long" });
     if (!e.allDay) when += ` · ${hhmm(e.when)}`;
     if (e.night && day.getTime() === tomorrow.getTime()) when = e.night;
-    return `<div class="nxt"><div class="nd"><b class="n">${e.when.getDate()}</b><span>${e.when.toLocaleDateString("en-GB", { weekday: "short" })}</span></div>
-      <div style="min-width:0"><div class="nt">${esc(e.parts.join(" and "))}</div><div class="ns">${esc(when)}${e.dots.map((c) => `<span class="dot" style="background:${esc(c)}"></span>`).join("")}</div></div></div>`;
+    return `<span class="nxl" style="display:contents">${e.dots.map((c) => `<span class="dot" style="background:${esc(c)}"></span>`).join("")}<span class="t">${esc(when)} · ${esc(e.parts.join(" and "))}</span></span>`;
   }
 
   _nowPlaying() {
