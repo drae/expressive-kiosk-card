@@ -5,7 +5,7 @@ A small-screen kiosk for Home Assistant in the style of [expressive-slider-card]
 A side rail on every screen goes to Home, Lights, Heating, Weather, Camera and Energy. Lights shows a count of lights on; Heating turns amber while the boiler is heating.
 
 - **Home:** the clock and date. Underneath, three panels take turns with a slow crossfade: the sun's path through the day with sunrise, sunset and where the sun (or moon) is now; the next seven hours of weather; and the next thing on your calendars, with "Bin out tonight" the day before a collection. Tap the lower half to move on. While music plays, a now-playing tile takes their place. When an alert is active, a red pill in the corner names it and opens Alerts.
-- **Lights** and **Sockets:** one screen with two tabs. Everything labelled, grouped by area. Lights are [expressive-slider-card](https://github.com/drae/expressive-slider-card) sliders, two across, and each room with a group light starts with an All lights slider that switches the room. Until the slider card has loaded, lights are plain tiles. Sockets are tiles; tap to toggle. **All off** is in the header and never touches locked entities.
+- **Lights** and **Sockets:** one screen with two tabs. Everything labelled, grouped by area. Lights are [expressive-slider-card](https://github.com/drae/expressive-slider-card) sliders, two across, and each room with a group light and two or more lights starts with an All lights slider that switches the room. Until the slider card has loaded, lights are plain tiles. Sockets are tiles; tap to toggle. **All off** is in the header and never touches locked entities.
 - **Heating:** − and + either side of a thermostat tile coloured by the target, using the same scale as the schedule card. The mode button opens the climate's modes, plus boost.
 - **Weather:** 24 hours, eight to a page (swipe or tap the dots), with icon, temperature curve, rain chance and amount, and wind and gust; or 5 days as rows with a high-to-low bar, rain and wind.
 - **Camera:** a snapshot every few seconds, never a stream unless you tap Live, and the stream stops when you leave the screen. Chips show the latest picture of each object (for example Frigate's person, car and cat images) and when it was taken.
@@ -113,7 +113,7 @@ Give every view the same options and change only `view`.
 | `home.cycle` | `20` | Seconds each Home panel shows |
 | `light_label` / `socket_label` | `light` / `socket` | Lights are labelled `light.*` entities and sockets are labelled `switch.*` entities. The area comes from the entity, or from its device |
 | `areas` | | Area ids to put first; the others follow by name |
-| `area_groups` | | A group light per area. It is the area's All lights slider (shown when the area has two or more dimmable lights), and All off switches it in one call instead of each member |
+| `area_groups` | | A group light per area. It is the area's All lights slider (in areas with two or more lights), and All off switches it in one call instead of each member |
 | `locked` | | Entities that are shown but never switched, including by All off |
 | `lights_count` / `sockets_count` | | Count sensors for the rail badge and headers; counted from the labels when left out |
 | `alerts` | | `entity`, `name` and optional `ok`. An alert is active when the entity is `on`, or when `ok` is given and the state isn't `ok`. A group lists its members that are on |

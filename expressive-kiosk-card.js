@@ -29,7 +29,7 @@
  *   areas:                       # optional order; other areas follow by name
  *     - living_room
  *     - study
- *   area_groups:                 # group light per area: its All lights slider, and what Off switches
+ *   area_groups:                 # group light per area: its All lights slider (two or more lights), and what All off switches
  *     living_room: light.lounge
  *   locked:                      # shown, never switched (the rack)
  *     - switch.socket_11
@@ -90,7 +90,7 @@
  * Lights use expressive-slider-card when it is installed, plain tiles until it loads.
  */
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 const EVENTS_SHOWN = 1;
 const CAL_DAYS = 7;
 const CAL_REFRESH = 15 * 60000;
@@ -744,10 +744,14 @@ class ExpressiveKioskCard extends HTMLElement {
     const v = this._config.view;
     const list = this.shadowRoot.querySelector(".glist");
     const top = list?.scrollTop ?? 0;
+    const pic = v === "camera" ? this.shadowRoot.querySelector(".snap img") : null;
+    const picMode = `${this._live}|${this._seen}`;
     const body = { home: () => this._home(), lights: () => this._lights(), sockets: () => this._sockets(), heating: () => this._heating(),
       weather: () => this._weather(), camera: () => this._camera(), energy: () => this._energy(), alerts: () => this._alertsView() }[v]();
     this._card.innerHTML = `${this._rail()}<div class="main">${body}</div>`;
     if (v === "lights") this._mountSliders();
+    if (pic && this._picMode === picMode) this.shadowRoot.querySelector(".snap img")?.replaceWith(pic);
+    this._picMode = picMode;
     const list2 = this.shadowRoot.querySelector(".glist");
     if (list2) list2.scrollTop = top;
   }
@@ -871,7 +875,7 @@ class ExpressiveKioskCard extends HTMLElement {
     const body = groups.map((g) => {
       const grp = this._config.area_groups[g.area];
       const items = sliders
-        ? `${grp && this._st(grp) ? `<div class="slot wide" data-slot="all|${esc(g.area)}"></div>` : ""}${g.items.map((i) => `<div class="slot" data-slot="${i.id}"></div>`).join("")}`
+        ? `${grp && this._st(grp) && g.items.length > 1 ? `<div class="slot wide" data-slot="all|${esc(g.area)}"></div>` : ""}${g.items.map((i) => `<div class="slot" data-slot="${i.id}"></div>`).join("")}`
         : g.items.map((i) => this._tile(i, "light")).join("");
       return `${this._groupHead(g)}<div class="gitems${sliders ? " sliders" : ""}">${items}</div>`;
     }).join("");
@@ -890,7 +894,7 @@ class ExpressiveKioskCard extends HTMLElement {
         el = document.createElement("expressive-slider-card");
         const area = key.startsWith("all|") ? key.slice(4) : null;
         el.setConfig(area
-          ? { entity: this._config.area_groups[area], name: "All lights", icon: "mdi:lightbulb-group", group: { area, min_lights: 2 },
+          ? { entity: this._config.area_groups[area], name: "All lights", icon: "mdi:lightbulb-group", group: { area },
               tap_action: { action: "toggle" }, hold_action: { action: "none" }, double_tap_action: { action: "none" }, styles: ALL_STYLES }
           : { entity: key, name: names.get(key) ?? key, tap_action: { action: "toggle" }, hold_action: { action: "none" }, styles: SLIDER_STYLES });
         this._sliders.set(key, el);
