@@ -131,8 +131,8 @@ const text = (el) => el?.textContent.replace(/\s+/g, " ").trim();
     const xs = $$(c, ".sunpath text").map((e) => Number(e.getAttribute("x")));
     ok(Math.abs((xs[0] + xs[1]) / 2 - 322) < 1, "sun path centred on solar noon");
   }
-  ok($$(c, ".wrow > div").length === 7 && text($(c, ".wrow .tx span")) === "Now", "next seven hours, Now first");
-  ok($(c, ".wrow .iu img").getAttribute("src").startsWith("http://ha/local/custom/weather/icons/icon_"), "hourly icons from the icon path");
+  ok($$(c, ".wrow > div").length === 7 && text($(c, ".wrow span")) === "Now", "next seven hours, Now first");
+  ok($(c, ".wrow img").getAttribute("src").startsWith("http://ha/local/custom/weather/icons/icon_"), "hourly icons from the icon path");
   const nxt = text($(c, ".nxl"));
   ok(nxt.includes("Mixed recycling and Food waste") && nxt.includes("Bin out tonight"), "next up: bins tomorrow, out tonight");
   ok($$(c, ".nxl .dot").length === 2, "a dot per coloured collection");

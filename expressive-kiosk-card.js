@@ -92,7 +92,7 @@
  * Lights use expressive-slider-card when it is installed, plain tiles until it loads.
  */
 
-const VERSION = "0.5.0";
+const VERSION = "0.5.1";
 const EVENTS_SHOWN = 1;
 const CAL_DAYS = 7;
 const CAL_REFRESH = 15 * 60000;
@@ -277,22 +277,21 @@ const CSS_TEXT = `
   .dt { position: relative; width: 100%; height: 40px; margin-top: 14px; border: 0; padding: 0; background: none; cursor: pointer; }
   .cycwrap { position: absolute; left: 0; right: 0; bottom: 0; height: 190px; border: 0; padding: 0; background: none; cursor: pointer; }
   .cyc { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; opacity: 0; transition: opacity .8s ease;
-         padding: 0 32px; font-size: var(--fs-title); color: var(--soft); white-space: nowrap; }
+         padding: 0 24px; font-size: var(--fs-title); color: var(--soft); white-space: nowrap; }
   .cyc.on { opacity: 1; }
   .cdots { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; justify-content: center; gap: 8px; pointer-events: none; }
   .cdots i { width: 8px; height: 8px; border-radius: 100%; background: var(--line); transition: background-color .8s; }
   .cdots i.on { background: var(--sub); }
   .sunpath { position: absolute; left: 32px; right: 32px; bottom: 28px; height: 150px; width: calc(100% - 64px); }
   .sunpath text, .chart text, .echart text { font-family: inherit; }
-  /* next hours in the date line: icon with rain chance centred under it, then temperature over hour */
-  .wrow { display: grid; grid-template-columns: repeat(${STRIP_HOURS}, 88px); }
-  .wrow > div { display: flex; align-items: center; justify-content: center; gap: 6px; }
-  .wrow .iu { display: flex; flex-direction: column; align-items: center; width: 36px; }
-  .wrow img { width: 32px; height: 32px; margin-top: -2px; }
-  .wrow em { font-style: normal; font-size: var(--fs-axis); color: var(--rain); line-height: 1; height: 14px; margin-top: -7px; }
-  .wrow .tx { line-height: 1.18; text-align: left; }
-  .wrow b { font-size: var(--fs-text); font-weight: 600; color: #fff; }
-  .wrow .tx > span { display: block; font-size: var(--fs-axis); color: var(--sub); margin-top: 1px; }
+  /* next hours in the date line, a 2 x 2 grid per hour: icon beside temperature, rain chance beside hour on one baseline */
+  .wrow { display: grid; grid-template-columns: repeat(${STRIP_HOURS}, 94px); }
+  .wrow > div { display: grid; grid-template-columns: 34px auto; column-gap: 6px; row-gap: 2px; justify-content: center; align-items: center; }
+  .wrow img { width: 32px; height: 32px; margin: -5px 0 -5px; justify-self: center; }
+  .wrow b { font-size: var(--fs-text); font-weight: 600; color: #fff; line-height: 1; }
+  .wrow em, .wrow span { align-self: baseline; font-size: var(--fs-axis); line-height: 1; }
+  .wrow em { font-style: normal; color: var(--rain); justify-self: center; }
+  .wrow span { color: var(--sub); }
   .nxl .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .dot { width: 12px; height: 12px; border-radius: 100%; display: inline-block; flex: none; }
   .apill { position: absolute; top: 16px; right: 16px; height: 48px; border-radius: 24px; border: 0; background: var(--alert); padding: 0 18px 0 12px;
@@ -963,8 +962,8 @@ class ExpressiveKioskCard extends HTMLElement {
     const hrs = this._hourly().slice(0, STRIP_HOURS);
     if (!hrs.length) return null;
     const days = this._sunDays();
-    return `<div class="wrow">${hrs.map((h, i) => `<div><span class="iu"><img src="${esc(this._url(this._icon(h.c, this._isDay(h.d, days))))}" alt="">
-      <em class="n">${Number(h.p) ? `${h.p}%` : ""}</em></span><span class="tx"><b class="n">${Math.round(Number(h.t))}°</b><span class="n">${i ? `${pad(h.d.getHours())}:00` : "Now"}</span></span></div>`).join("")}</div>`;
+    return `<div class="wrow">${hrs.map((h, i) => `<div><img src="${esc(this._url(this._icon(h.c, this._isDay(h.d, days))))}" alt=""><b class="n">${Math.round(Number(h.t))}°</b>
+      <em class="n">${Number(h.p) ? `${h.p}%` : ""}</em><span class="n">${i ? `${pad(h.d.getHours())}:00` : "Now"}</span></div>`).join("")}</div>`;
   }
 
   _nextPanel() {
