@@ -19,6 +19,7 @@
  *     alerts: /kitchen-show/alerts
  *   home:
  *     cycle: 20                  # seconds each turn of the line under the clock shows: date, next hours, next up
+ *     dim_rail: 8                # seconds untouched before the rail dims on Home (0 keeps it bright)
  *   climate: climate.thermostat
  *   climate_name: Hallway thermostat
  *   boost:                       # hive.boost_heating_on when it exists, else the boost preset
@@ -92,7 +93,7 @@
  * Lights use expressive-slider-card when it is installed, plain tiles until it loads.
  */
 
-const VERSION = "0.5.2";
+const VERSION = "0.6.0";
 const EVENTS_SHOWN = 1;
 const CAL_DAYS = 7;
 const CAL_REFRESH = 15 * 60000;
@@ -253,6 +254,14 @@ const CSS_TEXT = `
   .rb .bd { position: absolute; top: 2px; right: 2px; min-width: 20px; height: 20px; border-radius: 10px; background: var(--amber); color: #fff;
             font-size: var(--fs-axis); font-weight: 600; display: grid; place-items: center; padding: 0 5px; }
   .main { position: relative; flex: 1; min-width: 0; }
+  /* Home: the rail sits on the sky, which runs the full width behind it */
+  .rail.sky { position: absolute; left: 0; top: 0; bottom: 0; z-index: 3; background: transparent; transition: opacity 1.2s ease; }
+  .rail.sky .rb { color: rgba(255, 255, 255, .5); }
+  .rail.sky .rb.sel { background: rgba(255, 255, 255, .08); color: #fff; }
+  .rail.sky .rb.heat { color: var(--amber); }
+  .rail.idle { opacity: .3; }
+  .main.home { margin-left: 80px; --rail: 80px; }
+  .main.home .glow { left: calc(-1 * var(--rail)); }
 
   .btn64 { height: 64px; border-radius: 32px; border: 0; padding: 0 24px; background: var(--tile); font-size: var(--fs-text); font-weight: 600;
            display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; flex: none; }
@@ -419,7 +428,7 @@ class ExpressiveKioskCard extends HTMLElement {
     this._config = {
       light_label: "light", socket_label: "socket", locked: [], alerts: [], calendars: [], areas: [], area_groups: {},
       paths: {}, sun: {}, media: {}, camera: {}, energy: {}, ...config, view,
-      home: { cycle: 20, ...config.home },
+      home: { cycle: 20, dim_rail: 8, ...config.home },
       weather: { icon_path: "/local/custom/weather/icons/", ...config.weather },
       boost: { minutes: 60, temperature: 21, ...config.boost },
     };
@@ -427,7 +436,7 @@ class ExpressiveKioskCard extends HTMLElement {
       this.attachShadow({ mode: "open" }).innerHTML = `<style>${CSS_TEXT}</style><ha-card></ha-card>`;
       this._card = this.shadowRoot.querySelector("ha-card");
       this._card.addEventListener("click", (e) => this._click(e));
-      this._card.addEventListener("pointerdown", (e) => { this._swipe = e.target.closest(".wx") ? e.clientX : null; });
+      this._card.addEventListener("pointerdown", (e) => { this._swipe = e.target.closest(".wx") ? e.clientX : null; this._wake(); });
       this._card.addEventListener("pointerup", (e) => this._swiped(e));
     }
     this._menu = false;
@@ -473,7 +482,7 @@ class ExpressiveKioskCard extends HTMLElement {
     if (v === "home") this._timers.push(setInterval(() => this._loadEvents(), CAL_REFRESH));
     if (v === "energy") this._timers.push(setInterval(() => this._loadStats(), STATS_REFRESH));
     if (v === "camera") this._timers.push(setInterval(() => this._refreshSnap(), Math.max(1, Number(this._config.camera.refresh) || 5) * 1000));
-    this._cycAt = Date.now();
+    this._cycAt = this._touchAt = Date.now();
     if (this._hass) this._load();
   }
 
@@ -736,6 +745,18 @@ class ExpressiveKioskCard extends HTMLElement {
     if (tm && tm.textContent !== hhmm(new Date())) this._render(); // a new minute also moves the sun marker
     const secs = Number(this._config.home.cycle) || 20;
     if (this._config.view === "home" && Date.now() - (this._cycAt ?? 0) >= secs * 1000) this._advance();
+    if (this._railIdle() && !this.shadowRoot.querySelector(".rail.idle")) this.shadowRoot.querySelector(".rail.sky")?.classList.add("idle");
+  }
+
+  // Home dims the rail after a while untouched; any touch brings it back
+  _railIdle() {
+    const secs = Number(this._config.home.dim_rail) || 0;
+    return this._config.view === "home" && secs > 0 && Date.now() - (this._touchAt ?? 0) >= secs * 1000;
+  }
+
+  _wake() {
+    this._touchAt = Date.now();
+    this.shadowRoot?.querySelector(".rail.idle")?.classList.remove("idle");
   }
 
   // Next Home panel: swap classes in place so the crossfade runs
@@ -827,7 +848,7 @@ class ExpressiveKioskCard extends HTMLElement {
     const picMode = `${this._live}|${this._seen}`;
     const body = { home: () => this._home(), lights: () => this._lights(), sockets: () => this._sockets(), heating: () => this._heating(),
       weather: () => this._weather(), camera: () => this._camera(), energy: () => this._energy(), alerts: () => this._alertsView() }[v]();
-    this._card.innerHTML = `${this._rail()}<div class="main">${body}</div>`;
+    this._card.innerHTML = `${this._rail()}<div class="main${v === "home" ? " home" : ""}">${body}</div>`;
     if (v === "lights") this._mountSliders();
     if (pic && this._picMode === picMode) this.shadowRoot.querySelector(".snap img")?.replaceWith(pic);
     this._picMode = picMode;
@@ -839,7 +860,8 @@ class ExpressiveKioskCard extends HTMLElement {
     const v = this._config.view;
     const lo = this._count("light");
     const heating = this._st(this._config.climate)?.attributes.hvac_action === "heating";
-    return `<nav class="rail">${RAIL.map(([go, icon]) => {
+    const sky = v === "home" ? ` sky${this._railIdle() ? " idle" : ""}` : "";
+    return `<nav class="rail${sky}">${RAIL.map(([go, icon]) => {
       const sel = v === go || (go === "lights" && v === "sockets");
       return `<button type="button" class="rb${sel ? " sel" : ""}${go === "heating" && heating ? " heat" : ""}" data-go="${go}" aria-label="${go}">${IC[icon]}${go === "lights" && lo ? `<span class="bd n">${lo}</span>` : ""}</button>`;
     }).join("")}</nav>`;
@@ -948,7 +970,8 @@ class ExpressiveKioskCard extends HTMLElement {
     const below = SUN_BOTTOM + SUN_H - SUN_HZ;
     const rgb = (c, al) => `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${fx(al * 100) / 100})`;
     const [hc, mc, tc] = g.c, wm = warmth(e) * 0.9;
-    const sx = `calc(32px + ${fx(s.x(s.now) / SUN_W * 1000) / 1000} * (100% - 64px))`;
+    // the glow spans the rail too, so offset by its width (--rail)
+    const sx = `calc(var(--rail, 0px) + 32px + ${fx(s.x(s.now) / SUN_W * 1000) / 1000} * (100% - var(--rail, 0px) - 64px))`;
     const up = clamp(e / 4, 0, 1), lift = fx((e + 0.833) * s.k);
     const halo = up ? `radial-gradient(circle 160px at ${sx} calc(100% - ${lift}px), rgba(255, 238, 205, ${fx(0.55 * up * 100) / 100}), rgba(255, 238, 205, 0)), ` : "";
     const bg = `${halo}radial-gradient(ellipse 280px ${fx(g.h * 90)}% at ${sx} 100%, ${rgb(hc, wm)}, ${rgb(hc, 0)}),

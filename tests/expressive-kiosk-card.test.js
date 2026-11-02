@@ -125,6 +125,7 @@ const text = (el) => el?.textContent.replace(/\s+/g, " ").trim();
 
   // Home
   ok(/^\d\d:\d\d$/.test(text($(c, ".tm"))), "clock");
+  ok($(c, ".rail.sky") && !$(c, ".rail.idle") && $(c, ".main.home"), "Home rail sits on the sky, bright at first");
   ok($$(c, ".dt .cyc").length === 3 && $$(c, ".cyc")[0].classList.contains("on") && /\d/.test(text($$(c, ".cyc")[0])), "date line takes three turns, the date first");
   ok($(c, ".cycwrap .sunpath") && text($(c, ".sunpath")).includes("07:00") && text($(c, ".sunpath")).includes("16:30"), "sun path with sunrise and sunset times");
   {
