@@ -1,7 +1,7 @@
 {
   "name": "expressive-kiosk-card",
   "private": true,
-  "description": "Small-screen kiosk card for Home Assistant: a Glance home with Froggy, calendar and totals, plus lights, sockets, heating and alerts screens",
+  "description": "Small-screen kiosk card for Home Assistant with a side rail: a clock Home with sun path, next hours and next up, plus lights, sockets, heating, weather, camera and energy screens",
   "license": "BSD-3-Clause",
   "author": "Paul Owen",
   "scripts": {

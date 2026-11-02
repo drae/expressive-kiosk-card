@@ -2,43 +2,40 @@
 
 A small-screen kiosk for Home Assistant in the style of [expressive-slider-card](https://github.com/drae/expressive-slider-card), [expressive-climate-card](https://github.com/drae/expressive-climate-card) and [expressive-schedule-card](https://github.com/drae/expressive-schedule-card). It was built for an Echo Show 5 running Kiosk Satellite, whose WebView is 788 × 394 CSS px. The card is meant to be read from across a room and spoken to more than touched.
 
-One card is one screen. Put each on its own panel view:
+A side rail on every screen goes to Home, Lights, Heating, Weather, Camera and Energy. Lights shows a count of lights on; Heating turns amber while the boiler is heating.
 
-- **Glance:** the clock, the next few hours of weather and what's coming up from your calendars. A Google Weather Frog scene sits behind the clock. Along the bottom are totals for lights on, sockets on, heating and alerts; each opens its own screen. While music plays, a now-playing tile with the cover and title replaces the weather row.
-- **Lights** and **Sockets:** every labelled light or socket, grouped by area. Each group heading has the area's count and an Off disc. Tap a tile to toggle it. **All off** is in the header.
+- **Home:** the clock and date. Underneath, three panels take turns with a slow crossfade: the sun's path through the day with sunrise, sunset and where the sun (or moon) is now; the next seven hours of weather; and the next thing on your calendars, with "Bin out tonight" the day before a collection. Tap the lower half to move on. While music plays, a now-playing tile takes their place. When an alert is active, a red pill in the corner names it and opens Alerts.
+- **Lights** and **Sockets:** one screen with two tabs. Everything labelled, grouped by area. Lights are [expressive-slider-card](https://github.com/drae/expressive-slider-card) sliders, two across, and each room with a group light starts with an All lights slider that switches the room. Until the slider card has loaded, lights are plain tiles. Sockets are tiles; tap to toggle. **All off** is in the header and never touches locked entities.
 - **Heating:** − and + either side of a thermostat tile coloured by the target, using the same scale as the schedule card. The mode button opens the climate's modes, plus boost.
+- **Weather:** 24 hours, eight to a page (swipe or tap the dots), with icon, temperature curve, rain chance and amount, and wind and gust; or 5 days as rows with a high-to-low bar, rain and wind.
+- **Camera:** a snapshot every few seconds, never a stream unless you tap Live, and the stream stops when you leave the screen. Chips show the latest picture of each object (for example Frigate's person, car and cat images) and when it was taken.
+- **Energy:** electricity, gas and total for today, yesterday and the last 7 days, in £ or kWh. Underneath, yesterday's electricity by hour, coloured by tariff band, with the share used in the peak band.
 - **Alerts:** each active alert, with the doors or devices behind it.
+
+Text follows one scale on every screen: 14, 16, 20, 24, 32, 72 and 144 px, regular and semibold.
 
 It is a single plain JavaScript file with no dependencies.
 
-## Screenshots
-
-Taken on the Echo Show 5 at 960 × 480 device pixels. The calendar titles are blurred.
-
-| | |
-|---|---|
-| ![Glance](docs/glance.png) | ![Lights](docs/lights.png) |
-| Glance | Lights |
-| ![Sockets](docs/sockets.png) | ![Heating](docs/heating.png) |
-| Sockets | Heating |
-| ![Alerts](docs/alerts.png) | |
-| Alerts | |
-
 ## Install
 
-Add `https://github.com/drae/expressive-kiosk-card` to HACS as a custom repository of type **Dashboard** and download it. HACS registers the resource.
+Add `https://github.com/drae/expressive-kiosk-card` to HACS as a custom repository of type **Dashboard** and download it. HACS registers the resource. Install expressive-slider-card too for the light sliders.
 
 ## Example
 
 ```yaml
 type: custom:expressive-kiosk-card
-view: glance
+view: home
 paths:
-  glance: /kitchen-show/glance
+  home: /kitchen-show/home
   lights: /kitchen-show/lights
   sockets: /kitchen-show/sockets
   heating: /kitchen-show/heating
+  weather: /kitchen-show/weather
+  camera: /kitchen-show/camera
+  energy: /kitchen-show/energy
   alerts: /kitchen-show/alerts
+home:
+  cycle: 20
 climate: climate.thermostat
 climate_name: Hallway thermostat
 lights_count: sensor.count_lights_on
@@ -56,17 +53,50 @@ alerts:
   - entity: sensor.garden_thermal_comfort_frost_risk
     name: Frost risk
     ok: no_risk
+sun:
+  rising: sensor.home_sun_rising
+  setting: sensor.home_sun_setting
 weather:
-  condition: sensor.home_weather_condition
-  now: sensor.weather_now
   hourly: sensor.weather_hourly
+  five_day: sensor.weather_five_day
 calendars:
   - entity: calendar.home
   - entity: calendar.bins
     strip: " collection"
+    night_before: Bin out tonight
     colors:
       recycling: rgb(46, 131, 191)
       food: rgb(105, 178, 63)
+camera:
+  entity: camera.front
+  name: Front
+  refresh: 5
+  seen:
+    - entity: image.front_person
+      name: Person
+    - entity: image.front_car
+      name: Car
+energy:
+  power: sensor.electricity_power
+  electricity:
+    cost_today: sensor.electricity_cost_today
+    energy_today: sensor.electricity_import_today
+    energy: sensor.electricity_import
+  gas:
+    cost_today: sensor.gas_cost_today
+    energy_today: sensor.gas_import_today
+    energy: sensor.gas_import
+  tariff:
+    rate: 20.85
+    bands:
+      - name: Cheap
+        from: "02:00"
+        to: "05:00"
+        rate: 15.36
+      - name: Peak
+        from: "16:00"
+        to: "19:00"
+        rate: 40.49
 media:
   player: media_player.echo_show_kitchen
   now_playing: switch.echo_show_kitchen_now_playing
@@ -78,21 +108,27 @@ Give every view the same options and change only `view`.
 
 | Option | Default | |
 |---|---|---|
-| `view` | `glance` | `glance`, `lights`, `sockets`, `heating` or `alerts` |
-| `paths` | | Where each total and the back button go |
+| `view` | `home` | `home`, `lights`, `sockets`, `heating`, `weather`, `camera`, `energy` or `alerts` |
+| `paths` | | Where the rail, the Lights/Sockets tabs and the alert pill go |
+| `home.cycle` | `20` | Seconds each Home panel shows |
 | `light_label` / `socket_label` | `light` / `socket` | Lights are labelled `light.*` entities and sockets are labelled `switch.*` entities. The area comes from the entity, or from its device |
 | `areas` | | Area ids to put first; the others follow by name |
-| `area_groups` | | A group entity per area. Off on an area, and All off, switch the group in one call instead of each member |
+| `area_groups` | | A group light per area. It is the area's All lights slider (shown when the area has two or more dimmable lights), and All off switches it in one call instead of each member |
 | `locked` | | Entities that are shown but never switched, including by All off |
-| `lights_count` / `sockets_count` | | Count sensors for the Glance totals; counted from the labels when left out |
+| `lights_count` / `sockets_count` | | Count sensors for the rail badge and headers; counted from the labels when left out |
 | `alerts` | | `entity`, `name` and optional `ok`. An alert is active when the entity is `on`, or when `ok` is given and the state isn't `ok`. A group lists its members that are on |
 | `climate` / `climate_name` | | The thermostat and the name under the Heating title |
 | `boost` | `minutes: 60`, `temperature: 21` | Boost uses `hive.boost_heating_on` when it exists, otherwise the climate's `boost` preset |
-| `weather.condition` | | A Google Weather condition sensor; its `type` and `is_daytime` pick the frog scene |
-| `weather.now` / `weather.hourly` | | `now_temp`, and a `forecast` attribute of `{dt, t}` hours |
-| `weather.frog_path` | `/local/froggy/` | Where the [Google Weather Frog](https://github.com/Senexis/Google-Weather-Frog) layers live |
-| `frog` | `fade: 0`, `size: 546`, `lift: 0`, `shadow: 1.2` | Where the scene starts fading (%), its size and lift (px), and the text shadow strength |
-| `calendars` | | `entity`, optional `strip` (text removed from summaries) and `colors` (summary text → dot colour). Events on the same day from one calendar share a row |
+| `sun.rising` / `sun.setting` | | Sensors with `yesterday`, `today` and `tomorrow` attributes. They draw the sun path and pick day or night weather icons |
+| `weather.hourly` | | A `forecast` attribute of `{dt, c, p, mm, ws, wg, wb, t}` hours |
+| `weather.five_day` | | A `days` attribute of `{datetime, icon, temp, templow, precipitation, wind_speed, wind_bearing}` |
+| `weather.icon_path` | `/local/custom/weather/icons/` | Hourly icons are `icon_<condition>.svg`, with `_night` added after dark |
+| `calendars` | | `entity`, optional `strip` (text removed from summaries), `colors` (summary text → dot colour) and `night_before` (shown the day before). Events on the same day from one calendar share a row |
+| `camera.entity` / `camera.name` / `camera.refresh` | `refresh: 5` | The camera and the seconds between snapshots |
+| `camera.seen` | | `entity` and `name` of image entities with the latest picture of each object |
+| `energy.power` | | Power now, in kW or W |
+| `energy.electricity` / `energy.gas` | | `cost_today` (£, including standing charge), `energy_today` (kWh) and `energy` (cumulative kWh). Yesterday and the last 7 days come from the long-term statistics of `cost_today` and `energy` |
+| `energy.tariff` | | `rate` in pence outside the bands, and `bands` of `name`, `from`, `to`, `rate` and optional `color`. A band cheaper than `rate` is green, a dearer one orange |
 | `media.player` / `media.now_playing` | | The player, and the switch that opens Kiosk Satellite's now-playing screen |
 
 ## Dashboard
@@ -105,4 +141,4 @@ Use panel views, one card each, and hide the HA header (for example with [kiosk-
 
 ## Licence
 
-BSD 3-Clause. The frog artwork is not included; see the Google Weather Frog project for its terms.
+BSD 3-Clause.
