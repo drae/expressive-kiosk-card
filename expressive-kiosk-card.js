@@ -45,6 +45,7 @@
  *     rising: sensor.home_sun_rising         # attributes yesterday / today / tomorrow
  *     setting: sensor.home_sun_setting
  *     latitude: 51.5                        # optional, defaults to Home Assistant's own
+ *     longitude: -0.1                       # optional, defaults to Home Assistant's own (stars and moon)
  *   weather:
  *     hourly: sensor.weather_hourly          # attribute forecast: [{dt, c, p, mm, ws, wg, wb, t}]
  *     five_day: sensor.weather_five_day      # attribute days: [{datetime, icon, temp, templow, precipitation, wind_speed, wind_bearing}]
@@ -91,7 +92,7 @@
  * Lights use expressive-slider-card when it is installed, plain tiles until it loads.
  */
 
-const VERSION = "0.3.0";
+const VERSION = "0.4.0";
 const EVENTS_SHOWN = 1;
 const CAL_DAYS = 7;
 const CAL_REFRESH = 15 * 60000;
@@ -149,6 +150,47 @@ const solar = (rise, set, lat) => {
   const mins = (d) => (d - midnight(rise)) / 6e4, noon = (mins(rise) + mins(set)) / 2;
   const elev = (m) => Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos((m - noon) / 4 * RAD)) / RAD;
   return { noon, elev, rise: mins(rise), set: mins(set), peak: 90 - Math.abs(lat) + 23.44 + 0.833 };
+};
+// Bright stars: RA hours, Dec degrees, magnitude, tint (r red, o orange, b blue)
+const STARS = [
+  [6.75, -16.7, -1.46], [14.26, 19.2, -0.05, "o"], [18.62, 38.8, 0.03, "b"], [5.28, 46.0, 0.08], [5.24, -8.2, 0.13, "b"], [7.66, 5.2, 0.34],
+  [5.92, 7.4, 0.5, "r"], [19.85, 8.9, 0.77], [4.6, 16.5, 0.85, "r"], [16.49, -26.4, 0.96, "r"], [13.42, -11.2, 0.97, "b"], [7.76, 28.0, 1.14, "o"],
+  [22.96, -29.6, 1.16], [20.69, 45.3, 1.25], [10.14, 12.0, 1.35, "b"], [7.58, 31.9, 1.58], [5.42, 6.35, 1.64, "b"], [5.44, 28.6, 1.65],
+  [5.6, -1.2, 1.69, "b"], [5.68, -1.9, 1.77, "b"], [5.53, -0.3, 2.23, "b"], [5.8, -9.67, 2.06, "b"], [12.9, 55.96, 1.77], [11.06, 61.75, 1.79, "o"],
+  [11.03, 56.38, 2.37], [11.9, 53.7, 2.44], [12.26, 57.0, 3.31], [13.4, 54.9, 2.23], [13.79, 49.3, 1.86, "b"], [3.4, 49.86, 1.79],
+  [2.53, 89.26, 1.98], [0.14, 29.1, 2.06], [2.12, 23.5, 2.0, "o"], [3.14, 40.96, 2.1], [11.82, 14.6, 2.14], [0.68, 56.5, 2.24, "o"],
+  [0.15, 59.15, 2.28], [0.95, 60.7, 2.15], [1.43, 60.2, 2.68], [1.9, 63.7, 3.35], [14.85, 74.15, 2.08, "o"], [17.58, 12.56, 2.07],
+  [21.74, 9.9, 2.39, "o"], [23.06, 28.1, 2.42, "r"], [23.08, 15.2, 2.48], [0.22, 15.2, 2.83], [20.37, 40.26, 2.23], [20.77, 33.97, 2.48],
+  [19.51, 27.96, 3.05, "o"], [6.63, 16.4, 1.93], [6.38, -17.96, 1.98, "b"], [6.98, -28.97, 1.5, "b"], [7.14, -26.4, 1.84], [2.06, 42.3, 2.1, "o"],
+  [1.16, 35.6, 2.05, "r"], [6.0, 44.9, 1.9], [9.46, -8.66, 2.0, "o"], [17.94, 51.5, 2.24, "o"], [18.92, -26.3, 2.05, "b"], [3.79, 24.1, 2.87, "b"],
+  [3.75, 24.4, 3.6, "b"], [3.82, 24.05, 3.6, "b"], [16.0, -22.6, 2.3, "b"], [15.58, 26.7, 2.2], [17.24, 14.4, 3.1, "r"], [19.77, 10.6, 2.7],
+  [8.16, 9.18, 3.5], [9.76, 23.8, 3.0], [21.31, 62.6, 2.45], [20.0, 35.1, 3.9], [18.98, 32.7, 3.25], [22.72, 30.2, 2.9],
+];
+// fainter background stars, scattered evenly over the sphere (seeded, so they stay put)
+const FIELD = (() => { let s = 7; const r = () => (s = (s * 16807) % 2147483647) / 2147483647; return Array.from({ length: 260 }, () => [r() * 24, Math.asin(2 * r() - 1) / RAD, 3.4 + r() * 1.3]); })();
+const TINT = { r: "255, 214, 170", o: "255, 236, 205", b: "214, 228, 255" };
+const julian = (d) => d / 864e5 + 2440587.5;
+const siderealDeg = (d, lon) => (((18.697374558 + 24.06570982441908 * (julian(d) - 2451545)) * 15 + lon) % 360 + 360) % 360;
+const wrap180 = (h) => ((h + 180) % 360 + 360) % 360 - 180;
+const altitude = (lat, ha, dec) => Math.asin(Math.sin(lat * RAD) * Math.sin(dec * RAD) + Math.cos(lat * RAD) * Math.cos(dec * RAD) * Math.cos(ha * RAD)) / RAD;
+// Moon position and phase, low precision (about a degree)
+const moonAt = (d) => {
+  const n = julian(d) - 2451545, eps = 23.439 * RAD;
+  const L = 218.316 + 13.176396 * n, M = (134.963 + 13.064993 * n) * RAD, F = (93.272 + 13.22935 * n) * RAD;
+  const lam = (L + 6.289 * Math.sin(M)) * RAD, bet = 5.128 * Math.sin(F) * RAD;
+  const ra = Math.atan2(Math.sin(lam) * Math.cos(eps) - Math.tan(bet) * Math.sin(eps), Math.cos(lam)) / RAD;
+  const dec = Math.asin(Math.sin(bet) * Math.cos(eps) + Math.cos(bet) * Math.sin(eps) * Math.sin(lam)) / RAD;
+  const g = (357.529 + 0.98560028 * n) * RAD, ls = 280.459 + 0.98564736 * n + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g);
+  const el = ((lam / RAD - ls) % 360 + 360) % 360;
+  return { ra: (ra + 360) % 360, dec, frac: (1 - Math.cos(el * RAD)) / 2, waxing: el < 180 };
+};
+// faintest star magnitude visible for the sun's elevation: the brightest from the end of civil twilight, all by astronomical night
+const LIMITS = [[-4, -2], [-6, 1], [-9, 2], [-12, 3], [-15, 4], [-18, 4.7]];
+const starLimit = (e) => {
+  if (e >= -4) return -9;
+  if (e <= -18) return 4.7;
+  const i = LIMITS.findIndex((r) => r[0] < e), p = LIMITS[i - 1], q = LIMITS[i], t = (e - p[0]) / (q[0] - p[0]);
+  return p[1] + (q[1] - p[1]) * t;
 };
 const SUN_W = 644, SUN_H = 150, SUN_HZ = 104, SUN_BOTTOM = 28; // horizon sits SUN_BOTTOM + SUN_H - SUN_HZ above the bottom
 const money = (v) => (!Number.isFinite(v) ? "–" : v < 1 ? `${Math.round(v * 100)}p` : `£${v.toFixed(2)}`);
@@ -230,6 +272,7 @@ const CSS_TEXT = `
   .hm { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding-top: 40px; }
   .tm, .dt { position: relative; }
   .glow { position: absolute; left: 0; right: 0; pointer-events: none; }
+  .night { position: absolute; left: 32px; width: calc(100% - 64px); pointer-events: none; overflow: hidden; }
   .tm { font-size: var(--fs-clock); font-weight: 500; line-height: .9; letter-spacing: -0.02em; }
   .dt { font-size: var(--fs-title); color: var(--soft); margin-top: 16px; }
   .cycwrap { position: absolute; left: 0; right: 0; bottom: 0; height: 190px; border: 0; padding: 0; background: none; cursor: pointer; }
@@ -820,7 +863,7 @@ class ExpressiveKioskCard extends HTMLElement {
     if (this._cyc >= panels.length) this._cyc = 0;
     const lower = np ?? (panels.length ? `<button type="button" class="cycwrap" data-act="cycle" aria-label="Next panel">${panels.map((p, i) => `<div class="cyc${i === this._cyc ? " on" : ""}">${p}</div>`).join("")}</button>
       ${panels.length > 1 ? `<div class="cdots">${panels.map((_, i) => `<i class="${i === this._cyc ? "on" : ""}"></i>`).join("")}</div>` : ""}` : "");
-    return `<div class="hm">${this._skyGlow()}<div class="tm n">${hhmm(now)}</div><div class="dt">${esc(date)}</div>${lower}</div>${pill}`;
+    return `<div class="hm">${this._skyGlow()}${this._night()}<div class="tm n">${hhmm(now)}</div><div class="dt">${esc(date)}</div>${lower}</div>${pill}`;
   }
 
   _sun() {
@@ -828,6 +871,8 @@ class ExpressiveKioskCard extends HTMLElement {
     if (!today) return null;
     const lat = Number(this._config.sun.latitude ?? this._hass?.config?.latitude ?? 51.5);
     const s = solar(today[0], today[1], lat), now = new Date();
+    s.lat = lat;
+    s.lon = Number(this._config.sun.longitude ?? this._hass?.config?.longitude ?? 0);
     s.now = (now - midnight(now)) / 6e4;
     // one scale all year: midsummer noon fills the sky, twilight to -18° below
     s.k = Math.min((SUN_HZ - 14) / s.peak, (SUN_H - 6 - SUN_HZ) / 18);
@@ -862,6 +907,36 @@ class ExpressiveKioskCard extends HTMLElement {
       <g clip-path="url(#ekc-sky)"><circle cx="${fx(s.x(s.now))}" cy="${fx(s.y(s.now))}" r="9" fill="var(--temp)"/></g>
       <rect x="0" y="${hz - 1}" width="${W}" height="2" fill="rgba(255, 255, 255, .22)" ${sides}/>
       ${time(s.rise, s.times[0])}${time(s.set, s.times[1])}</svg>`;
+  }
+
+  // Stars and moon at their real positions on the sun path's scale; stars come out by brightness as the sky darkens
+  _night() {
+    const s = this._sun();
+    if (!s) return "";
+    const now = new Date(), lst = siderealDeg(now, s.lon), top = Math.ceil(90 * s.k) + 4;
+    const pos = (raDeg, dec) => { const ha = wrap180(lst - raDeg); return [8 + (ha / 360 + 0.5) * (SUN_W - 16), altitude(s.lat, ha, dec)]; };
+    const moon = moonAt(now), [mx, malt] = pos(moon.ra, moon.dec), moonUp = malt > -0.5;
+    let lim = starLimit(s.elev(s.now));
+    if (moonUp) lim -= 1.5 * moon.frac;
+    let out = "";
+    if (lim > -2) for (const [ra, dec, mag, tint] of STARS.concat(FIELD)) {
+      const vis = Math.min(1, (lim - mag) / 0.8);
+      if (vis <= 0) continue;
+      const [x, alt] = pos(ra * 15, dec);
+      if (alt < 0.5 || x < 4 || x > SUN_W - 4) continue;
+      out += `<circle cx="${fx(x)}" cy="${fx(-alt * s.k)}" r="${fx(Math.max(0.5, 0.55 + (4.7 - mag) * 0.32))}" fill="rgb(${TINT[tint] || "255, 255, 255"})" opacity="${fx(vis * Math.min(1, 0.35 + (4.7 - mag) * 0.14))}"/>`;
+    }
+    if (moonUp) {
+      // lit on the side facing the sun: right while waxing, left while waning
+      const cy = -Math.max(malt, 0) * s.k, r = 8, rx = fx(r * Math.abs(1 - 2 * moon.frac)), right = moon.waxing;
+      const outer = right ? 1 : 0, term = moon.frac < 0.5 ? (right ? 0 : 1) : (right ? 1 : 0);
+      out += `<g opacity="${s.elev(s.now) > -0.833 ? 0.55 : 1}" clip-path="url(#ekc-up)"><circle cx="${fx(mx)}" cy="${fx(cy)}" r="${r}" fill="rgba(230, 228, 215, .12)"/>
+        <path d="M${fx(mx)} ${fx(cy - r)}A${r} ${r} 0 0 ${outer} ${fx(mx)} ${fx(cy + r)}A${rx} ${r} 0 0 ${term} ${fx(mx)} ${fx(cy - r)}Z" fill="rgb(232, 230, 218)"/></g>`;
+    }
+    if (!out) return "";
+    const below = SUN_BOTTOM + SUN_H - SUN_HZ;
+    return `<svg class="night" style="bottom:${below + 1}px;height:${top}px" viewBox="0 ${-top} ${SUN_W} ${top}" aria-hidden="true">
+      <defs><clipPath id="ekc-up"><rect x="0" y="${-top}" width="${SUN_W}" height="${top}"/></clipPath></defs>${out}</svg>`;
   }
 
   // Sky colour for the sun's height, climbing from the horizon at dawn and mirrored below it
