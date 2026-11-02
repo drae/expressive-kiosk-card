@@ -93,7 +93,7 @@
  * Lights use expressive-slider-card when it is installed, plain tiles until it loads.
  */
 
-const VERSION = "0.6.0";
+const VERSION = "0.6.1";
 const EVENTS_SHOWN = 1;
 const CAL_DAYS = 7;
 const CAL_REFRESH = 15 * 60000;
@@ -260,8 +260,8 @@ const CSS_TEXT = `
   .rail.sky .rb.sel { background: rgba(255, 255, 255, .08); color: #fff; }
   .rail.sky .rb.heat { color: var(--amber); }
   .rail.idle { opacity: .3; }
-  .main.home { margin-left: 80px; --rail: 80px; }
-  .main.home .glow { left: calc(-1 * var(--rail)); }
+  /* Home is centred on the whole screen, the rail floating over its left edge */
+  .main.home .sunpath, .main.home .night { left: calc(50% - ${SUN_W / 2}px); width: ${SUN_W}px; }
 
   .btn64 { height: 64px; border-radius: 32px; border: 0; padding: 0 24px; background: var(--tile); font-size: var(--fs-text); font-weight: 600;
            display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; flex: none; }
@@ -970,8 +970,8 @@ class ExpressiveKioskCard extends HTMLElement {
     const below = SUN_BOTTOM + SUN_H - SUN_HZ;
     const rgb = (c, al) => `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${fx(al * 100) / 100})`;
     const [hc, mc, tc] = g.c, wm = warmth(e) * 0.9;
-    // the glow spans the rail too, so offset by its width (--rail)
-    const sx = `calc(var(--rail, 0px) + 32px + ${fx(s.x(s.now) / SUN_W * 1000) / 1000} * (100% - var(--rail, 0px) - 64px))`;
+    // the sun path is centred on the screen at its natural width
+    const sx = `calc(50% - ${SUN_W / 2}px + ${fx(s.x(s.now))}px)`;
     const up = clamp(e / 4, 0, 1), lift = fx((e + 0.833) * s.k);
     const halo = up ? `radial-gradient(circle 160px at ${sx} calc(100% - ${lift}px), rgba(255, 238, 205, ${fx(0.55 * up * 100) / 100}), rgba(255, 238, 205, 0)), ` : "";
     const bg = `${halo}radial-gradient(ellipse 280px ${fx(g.h * 90)}% at ${sx} 100%, ${rgb(hc, wm)}, ${rgb(hc, 0)}),
