@@ -44,6 +44,7 @@
  *   sun:
  *     rising: sensor.home_sun_rising         # attributes yesterday / today / tomorrow
  *     setting: sensor.home_sun_setting
+ *     latitude: 51.5                        # optional, defaults to Home Assistant's own
  *   weather:
  *     hourly: sensor.weather_hourly          # attribute forecast: [{dt, c, p, mm, ws, wg, wb, t}]
  *     five_day: sensor.weather_five_day      # attribute days: [{datetime, icon, temp, templow, precipitation, wind_speed, wind_bearing}]
@@ -90,7 +91,7 @@
  * Lights use expressive-slider-card when it is installed, plain tiles until it loads.
  */
 
-const VERSION = "0.2.1";
+const VERSION = "0.3.0";
 const EVENTS_SHOWN = 1;
 const CAL_DAYS = 7;
 const CAL_REFRESH = 15 * 60000;
@@ -115,6 +116,41 @@ const fx = (n) => +n.toFixed(1);
 const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const minutes = (s) => { const [h, m] = String(s).split(":").map(Number); return h * 60 + (m || 0); };
 const midnight = (d = new Date(), days = 0) => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + days); return x; };
+// Clear-sky colours by sun elevation (southern England): horizon, middle and top of the glow, its height (share of the sky), opacity
+const SKY = [
+  [-18, [28, 35, 64], [28, 35, 64], [28, 35, 64], 0.12, 0],
+  [-15, [40, 50, 92], [32, 40, 74], [28, 35, 64], 0.22, 0.35],
+  [-12, [56, 72, 124], [40, 52, 94], [30, 38, 70], 0.36, 0.5],
+  [-9, [96, 92, 142], [58, 74, 124], [36, 46, 82], 0.52, 0.6],
+  [-6, [176, 112, 132], [88, 98, 148], [46, 60, 102], 0.68, 0.68],
+  [-3, [228, 132, 94], [172, 116, 140], [70, 86, 136], 0.84, 0.72],
+  [0, [245, 160, 80], [212, 142, 120], [100, 120, 165], 1, 0.72],
+  [3, [248, 190, 110], [204, 172, 150], [120, 145, 185], 1, 0.5],
+  [6, [245, 210, 150], [184, 182, 170], [130, 155, 190], 1, 0.4],
+  [10, [236, 206, 160], [150, 172, 198], [80, 120, 182], 1, 0.42],
+  [20, [170, 198, 222], [100, 150, 210], [56, 108, 190], 1, 0.48],
+  [40, [150, 190, 226], [88, 144, 214], [46, 100, 192], 1, 0.5],
+];
+const sky = (e) => {
+  const last = SKY[SKY.length - 1];
+  if (e <= SKY[0][0]) return { c: SKY[0].slice(1, 4), h: SKY[0][4], a: 0 };
+  if (e >= last[0]) return { c: last.slice(1, 4), h: 1, a: last[5] };
+  const i = SKY.findIndex((r) => r[0] > e), p = SKY[i - 1], q = SKY[i], t = (e - p[0]) / (q[0] - p[0]);
+  const mix = (u, v) => u.map((n, j) => Math.round(n + (v[j] - n) * t));
+  return { c: [1, 2, 3].map((j) => mix(p[j], q[j])), h: p[4] + (q[4] - p[4]) * t, a: p[5] + (q[5] - p[5]) * t };
+};
+// warm bloom over the sun: full through twilight and golden hour, faint by midday
+const warmth = (e) => e < 6 ? 1 : e > 20 ? 0.25 : 1 - 0.75 * (e - 6) / 14;
+const RAD = Math.PI / 180;
+// Sun elevation in degrees, minutes from local midnight; solar noon taken from the sunrise and sunset sensors
+const solar = (rise, set, lat) => {
+  const n = Math.round((midnight(rise) - new Date(rise.getFullYear(), 0, 0)) / 864e5);
+  const dec = 23.44 * Math.sin(2 * Math.PI * (284 + n) / 365) * RAD, phi = lat * RAD;
+  const mins = (d) => (d - midnight(rise)) / 6e4, noon = (mins(rise) + mins(set)) / 2;
+  const elev = (m) => Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos((m - noon) / 4 * RAD)) / RAD;
+  return { noon, elev, rise: mins(rise), set: mins(set), peak: 90 - Math.abs(lat) + 23.44 + 0.833 };
+};
+const SUN_W = 644, SUN_H = 150, SUN_HZ = 104, SUN_BOTTOM = 28; // horizon sits SUN_BOTTOM + SUN_H - SUN_HZ above the bottom
 const money = (v) => (!Number.isFinite(v) ? "–" : v < 1 ? `${Math.round(v * 100)}p` : `£${v.toFixed(2)}`);
 const kwh = (v) => (!Number.isFinite(v) ? "–" : v === 0 ? "0" : v >= 10 ? v.toFixed(0) : v.toFixed(1));
 
@@ -192,6 +228,8 @@ const CSS_TEXT = `
 
   /* Home */
   .hm { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding-top: 40px; }
+  .tm, .dt { position: relative; }
+  .glow { position: absolute; left: 0; right: 0; pointer-events: none; }
   .tm { font-size: var(--fs-clock); font-weight: 500; line-height: .9; letter-spacing: -0.02em; }
   .dt { font-size: var(--fs-title); color: var(--soft); margin-top: 16px; }
   .cycwrap { position: absolute; left: 0; right: 0; bottom: 0; height: 190px; border: 0; padding: 0; background: none; cursor: pointer; }
@@ -200,7 +238,7 @@ const CSS_TEXT = `
   .cdots { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; justify-content: center; gap: 8px; pointer-events: none; }
   .cdots i { width: 8px; height: 8px; border-radius: 100%; background: var(--line); transition: background-color .8s; }
   .cdots i.on { background: var(--sub); }
-  .sunpath { position: absolute; left: 32px; right: 32px; bottom: 28px; height: 120px; width: calc(100% - 64px); }
+  .sunpath { position: absolute; left: 32px; right: 32px; bottom: 28px; height: 150px; width: calc(100% - 64px); }
   .sunpath text, .chart text, .echart text { font-family: inherit; }
   .hstrip { position: absolute; left: 32px; right: 32px; bottom: 36px; display: grid; grid-template-columns: repeat(${STRIP_HOURS}, 1fr); }
   .hstrip div { display: flex; flex-direction: column; align-items: center; gap: 2px; }
@@ -782,32 +820,68 @@ class ExpressiveKioskCard extends HTMLElement {
     if (this._cyc >= panels.length) this._cyc = 0;
     const lower = np ?? (panels.length ? `<button type="button" class="cycwrap" data-act="cycle" aria-label="Next panel">${panels.map((p, i) => `<div class="cyc${i === this._cyc ? " on" : ""}">${p}</div>`).join("")}</button>
       ${panels.length > 1 ? `<div class="cdots">${panels.map((_, i) => `<i class="${i === this._cyc ? "on" : ""}"></i>`).join("")}</div>` : ""}` : "");
-    return `<div class="hm"><div class="tm n">${hhmm(now)}</div><div class="dt">${esc(date)}</div>${lower}</div>${pill}`;
+    return `<div class="hm">${this._skyGlow()}<div class="tm n">${hhmm(now)}</div><div class="dt">${esc(date)}</div>${lower}</div>${pill}`;
   }
 
-  // The sun's height over 24 hours: dotted all day, amber between sunrise and sunset, a marker for now
-  _sunPanel() {
+  _sun() {
     const today = this._sunDays().find(([r]) => r.toDateString() === new Date().toDateString());
     if (!today) return null;
-    const W = 644, H = 120;
-    const mins = (d) => d.getHours() * 60 + d.getMinutes();
-    const rise = mins(today[0]), set = mins(today[1]), now = mins(new Date());
-    const noon = (rise + set) / 2, k = Math.cos(Math.PI * ((set - rise) / 2) / 720), hz = H * 0.62, lowest = (1 + k) / (1 - k);
-    const y = (m) => { const v = (Math.cos(Math.PI * (m - noon) / 720) - k) / (1 - k); return v >= 0 ? hz - v * (hz - 12) * 0.92 : hz - v / lowest * (H - 26 - hz); };
-    const x = (m) => 8 + m / 1440 * (W - 16);
-    const path = (a, b) => { let d = ""; for (let m = a; m <= b; m += 10) d += `${d ? "L" : "M"}${fx(x(m))} ${fx(y(Math.min(m, b)))}`; return d; };
-    const up = now >= rise && now < set;
-    const ny = y(now);
-    const marker = up ? `<circle cx="${fx(x(now))}" cy="${fx(ny)}" r="9" fill="var(--temp)"/>`
-      : `<circle cx="${fx(x(now))}" cy="${fx(ny)}" r="9" fill="var(--soft)"/><circle cx="${fx(x(now) + 4)}" cy="${fx(ny - 3)}" r="8" fill="var(--ground)"/>`;
+    const lat = Number(this._config.sun.latitude ?? this._hass?.config?.latitude ?? 51.5);
+    const s = solar(today[0], today[1], lat), now = new Date();
+    s.now = (now - midnight(now)) / 6e4;
+    // one scale all year: midsummer noon fills the sky, twilight to -18° below
+    s.k = Math.min((SUN_HZ - 14) / s.peak, (SUN_H - 6 - SUN_HZ) / 18);
+    // x axis centred on solar noon
+    s.x = (m) => { const w = m < s.noon - 720 ? m + 1440 : m > s.noon + 720 ? m - 1440 : m; return 8 + (w - s.noon + 720) / 1440 * (SUN_W - 16); };
+    s.y = (m) => SUN_HZ - (s.elev(m) + 0.833) * s.k;
+    s.times = today;
+    return s;
+  }
+
+  // The sun's true path to one scale: day arc in amber, the sun hidden below the horizon, the night path fading towards -18°
+  _sunPanel() {
+    const s = this._sun();
+    if (!s) return null;
+    const W = SUN_W, H = SUN_H, hz = SUN_HZ, a0 = s.noon - 720, a1 = s.noon + 720;
+    const path = (a, b) => { let d = ""; for (let m = a; ; m += 5) { const mm = Math.min(m, b); d += `${d ? "L" : "M"}${fx(8 + (mm - s.noon + 720) / 1440 * (W - 16))} ${fx(s.y(mm))}`; if (mm >= b) break; } return d; };
+    const sides = `mask="url(#ekc-sides)"`;
+    const depths = [6, 12, 18].map((d, i) => `<rect x="0" y="${fx(hz + d * s.k - 0.5)}" width="${W}" height="1" fill="rgba(255, 255, 255, ${[0.1, 0.07, 0.045][i]})"/>`).join("");
+    const time = (m, d) => `<text x="${fx(s.x(m))}" y="${hz + 20}" text-anchor="middle" style="font-size:var(--fs-axis);fill:var(--sub)">${hhmm(d)}</text>`;
     return `<svg class="sunpath" viewBox="0 0 ${W} ${H}" aria-hidden="true">
-      <path d="${path(rise, set)}L${fx(x(set))} ${hz}L${fx(x(rise))} ${hz}Z" fill="rgba(240, 160, 75, .14)"/>
-      <line x1="8" x2="${W - 8}" y1="${hz}" y2="${hz}" stroke="var(--line)" stroke-width="2"/>
-      <path d="${path(0, 1440)}" fill="none" stroke="var(--sub)" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round"/>
-      <path d="${path(rise, set)}" fill="none" stroke="var(--temp)" stroke-width="3" stroke-linecap="round"/>
-      ${marker}
-      <text x="${fx(x(rise))}" y="${hz + 20}" text-anchor="middle" style="font-size:var(--fs-axis);fill:var(--sub)">Sunrise ${hhmm(today[0])}</text>
-      <text x="${fx(x(set))}" y="${hz + 20}" text-anchor="middle" style="font-size:var(--fs-axis);fill:var(--sub)">Sunset ${hhmm(today[1])}</text></svg>`;
+      <defs>
+        <linearGradient id="ekc-fadeg" gradientUnits="userSpaceOnUse" x1="0" y1="${hz}" x2="0" y2="${fx(hz + 18 * s.k)}"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        <mask id="ekc-fade" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect x="0" y="${hz + 1}" width="${W}" height="${H}" fill="url(#ekc-fadeg)"/></mask>
+        <linearGradient id="ekc-sidesg" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".2" stop-color="#fff"/><stop offset=".8" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        <mask id="ekc-sides" maskUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}"><rect x="0" y="0" width="${W}" height="${H}" fill="url(#ekc-sidesg)"/></mask>
+        <clipPath id="ekc-sky"><rect x="0" y="0" width="${W}" height="${hz - 1}"/></clipPath>
+      </defs>
+      <g ${sides}>${depths}</g>
+      <path d="${path(s.rise, s.set)}L${fx(s.x(s.set))} ${hz}L${fx(s.x(s.rise))} ${hz}Z" fill="rgba(240, 160, 75, .14)"/>
+      <path d="${path(a0, a1)}" fill="none" stroke="var(--sub)" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round" mask="url(#ekc-fade)"/>
+      <path d="${path(s.rise, s.set)}" fill="none" stroke="var(--temp)" stroke-width="3" stroke-linecap="round"/>
+      <g clip-path="url(#ekc-sky)"><circle cx="${fx(s.x(s.now))}" cy="${fx(s.y(s.now))}" r="9" fill="var(--temp)"/></g>
+      <rect x="0" y="${hz - 1}" width="${W}" height="2" fill="rgba(255, 255, 255, .22)" ${sides}/>
+      ${time(s.rise, s.times[0])}${time(s.set, s.times[1])}</svg>`;
+  }
+
+  // Sky colour for the sun's height, climbing from the horizon at dawn and mirrored below it
+  _skyGlow() {
+    const s = this._sun();
+    if (!s) return "";
+    const e = s.elev(s.now), g = sky(e);
+    if (g.a <= 0.01) return "";
+    const below = SUN_BOTTOM + SUN_H - SUN_HZ;
+    const rgb = (c, al) => `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${fx(al * 100) / 100})`;
+    const [hc, mc, tc] = g.c, wm = warmth(e) * 0.9;
+    const sx = `calc(32px + ${fx(s.x(s.now) / SUN_W * 1000) / 1000} * (100% - 64px))`;
+    const up = clamp(e / 4, 0, 1), lift = fx((e + 0.833) * s.k);
+    const halo = up ? `radial-gradient(circle 160px at ${sx} calc(100% - ${lift}px), rgba(255, 238, 205, ${fx(0.55 * up * 100) / 100}), rgba(255, 238, 205, 0)), ` : "";
+    const bg = `${halo}radial-gradient(ellipse 280px ${fx(g.h * 90)}% at ${sx} 100%, ${rgb(hc, wm)}, ${rgb(hc, 0)}),
+      linear-gradient(to top, ${rgb(hc, 0.55)} 0%, ${rgb(mc, 0.45)} 35%, ${rgb(tc, 0.38)} 70%, ${rgb(tc, 0.2 * clamp((g.h - 0.84) / 0.16, 0, 1))} 100%)`;
+    const rbg = `radial-gradient(ellipse 280px ${fx(below * 1.1)}px at ${sx} 0%, ${rgb(hc, wm * 0.8)}, ${rgb(hc, 0)}),
+      linear-gradient(to bottom, ${rgb(hc, 0.5)} 0%, ${rgb(mc, 0.25)} 45%, ${rgb(mc, 0)} 100%)`;
+    return `<div class="glow" style="bottom:${below}px;height:calc(${fx(g.h * 1000) / 1000} * (100% - ${below}px));opacity:${fx(g.a * 100) / 100};background:${bg}"></div>
+      <div class="glow" style="bottom:0;height:${below}px;opacity:${fx(g.a * 60) / 100};background:${rbg}"></div>`;
   }
 
   _stripPanel() {

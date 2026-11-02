@@ -126,7 +126,11 @@ const text = (el) => el?.textContent.replace(/\s+/g, " ").trim();
   // Home
   ok(/^\d\d:\d\d$/.test(text($(c, ".tm"))), "clock");
   ok($$(c, ".cyc").length === 3 && $$(c, ".cyc")[0].classList.contains("on"), "three panels, the first showing");
-  ok($(c, ".cyc .sunpath") && text($(c, ".sunpath")).includes("Sunrise 07:00") && text($(c, ".sunpath")).includes("Sunset 16:30"), "sun path with sunrise and sunset");
+  ok($(c, ".cyc .sunpath") && text($(c, ".sunpath")).includes("07:00") && text($(c, ".sunpath")).includes("16:30"), "sun path with sunrise and sunset times");
+  {
+    const xs = $$(c, ".sunpath text").map((e) => Number(e.getAttribute("x")));
+    ok(Math.abs((xs[0] + xs[1]) / 2 - 322) < 1, "sun path centred on solar noon");
+  }
   ok($$(c, ".hstrip > div").length === 7 && text($(c, ".hstrip > div")).startsWith("Now"), "next seven hours, Now first");
   ok($(c, ".hstrip img").getAttribute("src").startsWith("http://ha/local/custom/weather/icons/icon_"), "hourly icons from the icon path");
   const nxt = text($(c, ".nxt"));
