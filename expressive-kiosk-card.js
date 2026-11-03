@@ -18,7 +18,7 @@
  *     energy: /kitchen-show/energy
  *     alerts: /kitchen-show/alerts
  *   home:
- *     cycle: 20                  # seconds each turn of the line under the clock shows: date, next hours, next up
+ *     cycle: 20                  # seconds each turn below the clock shows: sun path, next hours, next up
  *     dim_rail: 8                # seconds untouched before the rail dims on Home (0 keeps it bright)
  *   climate: climate.thermostat
  *   climate_name: Hallway thermostat
@@ -96,7 +96,7 @@
  * Lights use expressive-slider-card when it is installed, plain tiles until it loads.
  */
 
-const VERSION = "0.6.3";
+const VERSION = "0.7.0";
 const EVENTS_SHOWN = 1;
 const CAL_DAYS = 7;
 const CAL_REFRESH = 15 * 60000;
@@ -282,30 +282,37 @@ const CSS_TEXT = `
 
   /* Home */
   .hm { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; padding-top: 40px; }
-  .tm, .dt { position: relative; }
+  .tm { position: relative; }
   .glow { position: absolute; left: 0; right: 0; pointer-events: none; }
   .night { position: absolute; left: 32px; width: calc(100% - 64px); pointer-events: none; overflow: hidden; }
   .tm { font-size: var(--fs-clock); font-weight: 500; line-height: .9; letter-spacing: -0.02em; }
-  .dt { position: relative; width: 100%; height: 40px; margin-top: 14px; border: 0; padding: 0; background: none; cursor: pointer; }
+  .dt { position: relative; height: 40px; margin-top: 14px; display: flex; align-items: center; font-size: var(--fs-title); color: var(--soft); }
   .cycwrap { position: absolute; left: 0; right: 0; bottom: 0; height: 190px; border: 0; padding: 0; background: none; cursor: pointer; }
-  .cyc { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; opacity: 0; transition: opacity .8s ease;
-         padding: 0 24px; font-size: var(--fs-title); color: var(--soft); white-space: nowrap; }
+  /* the turns sit centred between the date (224px down) and the dots (374px) */
+  .cyc { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .8s ease; padding: 20px 24px; }
   .cyc.on { opacity: 1; }
   .cdots { position: absolute; left: 0; right: 0; bottom: 12px; display: flex; justify-content: center; gap: 8px; pointer-events: none; }
   .cdots i { width: 8px; height: 8px; border-radius: 100%; background: var(--line); transition: background-color .8s; }
   .cdots i.on { background: var(--sub); }
   .sunpath { position: absolute; left: 32px; right: 32px; bottom: 28px; height: 150px; width: calc(100% - 64px); }
   .sunpath text, .chart text, .echart text { font-family: inherit; }
-  /* next hours in the date line, a 2 x 2 grid per hour: icon beside temperature, rain chance beside hour on one baseline */
-  .wrow { display: grid; grid-template-columns: repeat(${STRIP_HOURS}, 94px); }
-  .wrow > div { display: grid; grid-template-columns: 34px auto; column-gap: 6px; row-gap: 2px; justify-content: center; align-items: center; }
-  .wrow img { width: 32px; height: 32px; margin: -5px 0 -5px; justify-self: center; }
-  .wrow b { font-size: var(--fs-text); font-weight: 600; color: #fff; line-height: 1; }
-  .wrow em, .wrow span { align-self: baseline; font-size: var(--fs-axis); line-height: 1; }
-  .wrow em { font-style: normal; color: var(--rain); justify-self: center; }
-  .wrow span { color: var(--sub); }
-  .wrow b, .wrow span { justify-self: start; text-align: left; } /* the line is a button, which centres text */
-  .nxl .t { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  /* next hours, one column per hour */
+  .hcol { display: grid; grid-template-columns: repeat(${STRIP_HOURS}, 84px); }
+  .hcol > div { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .hcol span { font-size: var(--fs-text); color: var(--sub); }
+  .hcol img { width: 40px; height: 40px; }
+  .hcol b { font-size: var(--fs-value); font-weight: 600; color: #fff; }
+  .hcol em { font-style: normal; font-size: var(--fs-axis); color: var(--rain); height: 17px; }
+  /* next up: a date square beside what and when */
+  .nxc { display: flex; align-items: center; gap: 16px; background: var(--well); box-shadow: 0 4px 16px rgba(0, 0, 0, .35); border-radius: 24px;
+         padding: 12px 24px 12px 12px; max-width: 600px; text-align: left; }
+  .nxc .nd { width: 64px; height: 64px; border-radius: 16px; background: var(--tile); display: flex; flex-direction: column; align-items: center; justify-content: center; flex: none; }
+  .nxc .nd b { font-size: var(--fs-title); font-weight: 600; line-height: 1; }
+  .nxc .nd span { font-size: var(--fs-axis); color: var(--sub); text-transform: uppercase; letter-spacing: .06em; }
+  .nxc .nm { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .nxc .nt { font-size: var(--fs-value); font-weight: 600; }
+  .nxc .ns { font-size: var(--fs-text); color: var(--sub); display: flex; align-items: center; gap: 6px; }
+  .nxc .dot { width: 10px; height: 10px; }
   .dot { width: 12px; height: 12px; border-radius: 100%; display: inline-block; flex: none; }
   .apill { position: absolute; top: 16px; right: 16px; height: 48px; border-radius: 24px; border: 0; background: var(--alert); padding: 0 18px 0 12px;
            display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-text); font-weight: 600; cursor: pointer; z-index: 2; }
@@ -883,14 +890,13 @@ class ExpressiveKioskCard extends HTMLElement {
     const date = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
     const al = this._activeAlerts();
     const pill = al.length ? `<button type="button" class="apill" data-go="alerts">${IC.alert}${esc(al.length === 1 ? al[0].name : `${al.length} alerts`)}</button>` : "";
-    // the line under the clock takes turns: date, next hours, next up; the sun path stays below
-    const turns = [esc(date), this._stripPanel(), this._nextPanel()].filter(Boolean);
+    // the date stays under the clock; below it the sun path, next hours and next up take turns
+    const turns = [this._sunPanel(), this._stripPanel(), this._nextPanel()].filter(Boolean);
     if (this._cyc >= turns.length) this._cyc = 0;
-    const line = `<button type="button" class="dt" data-act="cycle" aria-label="Next">${turns.map((p, i) => `<div class="cyc${i === this._cyc ? " on" : ""}">${p}</div>`).join("")}</button>`;
-    const dots = turns.length > 1 ? `<div class="cdots">${turns.map((_, i) => `<i class="${i === this._cyc ? "on" : ""}"></i>`).join("")}</div>` : "";
-    const sun = this._sunPanel();
-    const lower = this._nowPlaying() ?? (sun ? `<button type="button" class="cycwrap" data-act="cycle" aria-label="Next">${sun}</button>` : "");
-    return `<div class="hm">${this._skyGlow()}${this._night()}<div class="tm n">${hhmm(now)}</div>${line}${lower}${dots}</div>${pill}`;
+    const np = this._nowPlaying();
+    const lower = np ?? (turns.length ? `<button type="button" class="cycwrap" data-act="cycle" aria-label="Next">${turns.map((p, i) => `<div class="cyc${i === this._cyc ? " on" : ""}">${p}</div>`).join("")}</button>` : "");
+    const dots = !np && turns.length > 1 ? `<div class="cdots">${turns.map((_, i) => `<i class="${i === this._cyc ? "on" : ""}"></i>`).join("")}</div>` : "";
+    return `<div class="hm">${this._skyGlow()}${this._night()}<div class="tm n">${hhmm(now)}</div><div class="dt">${esc(date)}</div>${lower}${dots}</div>${pill}`;
   }
 
   _sun() {
@@ -989,8 +995,8 @@ class ExpressiveKioskCard extends HTMLElement {
     const hrs = this._hourly().slice(0, STRIP_HOURS);
     if (!hrs.length) return null;
     const days = this._sunDays();
-    return `<div class="wrow">${hrs.map((h, i) => `<div><img src="${esc(this._url(this._icon(h.c, this._isDay(h.d, days))))}" alt=""><b class="n">${Math.round(Number(h.t))}°</b>
-      <em class="n">${Number(h.p) ? `${h.p}%` : ""}</em><span class="n">${i ? `${pad(h.d.getHours())}:00` : "Now"}</span></div>`).join("")}</div>`;
+    return `<div class="hcol">${hrs.map((h, i) => `<div><span class="n">${i ? `${pad(h.d.getHours())}:00` : "Now"}</span><img src="${esc(this._url(this._icon(h.c, this._isDay(h.d, days))))}" alt="">
+      <b class="n">${Math.round(Number(h.t))}°</b><em class="n">${Number(h.p) ? `${h.p}%` : ""}</em></div>`).join("")}</div>`;
   }
 
   _nextPanel() {
@@ -1001,7 +1007,9 @@ class ExpressiveKioskCard extends HTMLElement {
     let when = day.getTime() === today.getTime() ? "Today" : day.getTime() === tomorrow.getTime() ? "Tomorrow" : e.when.toLocaleDateString("en-GB", { weekday: "long" });
     if (!e.allDay) when += ` · ${hhmm(e.when)}`;
     if (e.night && day.getTime() === tomorrow.getTime()) when = e.night;
-    return `<span class="nxl" style="display:contents">${e.dots.map((c) => `<span class="dot" style="background:${esc(c)}"></span>`).join("")}<span class="t">${esc(when)} · ${esc(e.parts.join(" and "))}</span></span>`;
+    const what = e.parts.join(", ").replace(/, ([^,]*)$/, " and $1");
+    return `<div class="nxc"><div class="nd"><b class="n">${e.when.getDate()}</b><span>${esc(e.when.toLocaleDateString("en-GB", { weekday: "short" }))}</span></div>
+      <div class="nm"><div class="nt">${esc(what)}</div><div class="ns">${e.dots.map((c) => `<span class="dot" style="background:${esc(c)}"></span>`).join("")}${esc(when)}</div></div></div>`;
   }
 
   _nowPlaying() {

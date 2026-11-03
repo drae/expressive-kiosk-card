@@ -127,18 +127,19 @@ const text = (el) => el?.textContent.replace(/\s+/g, " ").trim();
   // Home
   ok(/^\d\d:\d\d$/.test(text($(c, ".tm"))), "clock");
   ok($(c, ".rail.sky") && !$(c, ".rail.idle") && $(c, ".main.home"), "Home rail sits on the sky, bright at first");
-  ok($$(c, ".dt .cyc").length === 3 && $$(c, ".cyc")[0].classList.contains("on") && /\d/.test(text($$(c, ".cyc")[0])), "date line takes three turns, the date first");
+  ok(/\d/.test(text($(c, ".dt"))) && !$(c, ".dt .cyc"), "date stays under the clock");
+  ok($$(c, ".cycwrap .cyc").length === 3 && $$(c, ".cyc")[0].classList.contains("on") && $(c, ".cyc .sunpath"), "three turns below, the sun path first");
   ok($(c, ".cycwrap .sunpath") && text($(c, ".sunpath")).includes("07:00") && text($(c, ".sunpath")).includes("16:30"), "sun path with sunrise and sunset times");
   {
     const xs = $$(c, ".sunpath text").map((e) => Number(e.getAttribute("x")));
     ok(Math.abs((xs[0] + xs[1]) / 2 - 322) < 1, "sun path centred on solar noon");
   }
-  ok($$(c, ".wrow > div").length === 7 && text($(c, ".wrow span")) === "Now", "next seven hours, Now first");
-  ok($(c, ".wrow img").getAttribute("src").startsWith("http://ha/local/custom/weather/icons/icon_"), "hourly icons from the icon path");
-  const nxt = text($(c, ".nxl"));
+  ok($$(c, ".hcol > div").length === 7 && text($(c, ".hcol span")) === "Now", "next seven hours, Now first");
+  ok($(c, ".hcol img").getAttribute("src").startsWith("http://ha/local/custom/weather/icons/icon_"), "hourly icons from the icon path");
+  const nxt = text($(c, ".nxc"));
   ok(nxt.includes("Mixed recycling and Food waste") && nxt.includes("Bin out tonight"), "next up: bins tomorrow, out tonight");
-  ok($$(c, ".nxl .dot").length === 2, "a dot per coloured collection");
-  click($(c, ".dt"));
+  ok($$(c, ".nxc .dot").length === 2 && /^\d+$/.test(text($(c, ".nxc .nd b"))), "a dot per coloured collection");
+  click($(c, ".cycwrap"));
   ok($$(c, ".cyc")[1].classList.contains("on") && $$(c, ".cdots i")[1].classList.contains("on"), "tap moves to the next panel");
   c.hass = { ...hass(), states: { ...states, "sensor.count_lights_on": { ...st("3"), last_updated: "t1" } } };
   ok($$(c, ".cyc")[1].classList.contains("on"), "a state update keeps the current panel");
