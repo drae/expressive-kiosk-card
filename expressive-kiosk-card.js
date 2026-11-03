@@ -68,7 +68,10 @@
  *   energy:
  *     power: sensor.electricity_power        # kW or W
  *     electricity:
- *       cost_today: sensor.electricity_cost_today     # £ including the standing charge; its statistics give past days
+ *       cost_today: sensor.electricity_cost_today     # £ including the standing charge
+ *       cost:                                         # optional cumulative £ statistics added up for past days (else cost_today's)
+ *         - sensor.electricity_import_cost
+ *         - sensor.electricity_standing_charge_cost
  *       energy_today: sensor.electricity_import_today
  *       energy: sensor.electricity_import             # cumulative kWh statistics: past days and yesterday by hour
  *     gas:
@@ -93,7 +96,7 @@
  * Lights use expressive-slider-card when it is installed, plain tiles until it loads.
  */
 
-const VERSION = "0.6.2";
+const VERSION = "0.6.3";
 const EVENTS_SHOWN = 1;
 const CAL_DAYS = 7;
 const CAL_REFRESH = 15 * 60000;
@@ -807,7 +810,8 @@ class ExpressiveKioskCard extends HTMLElement {
   async _loadStats() {
     const e = this._config.energy;
     if (!this._hass?.callWS) return;
-    const ids = ["electricity", "gas"].flatMap((k) => [e[k]?.cost_today, e[k]?.energy]).filter(Boolean);
+    const costIds = (k) => [].concat(e[k]?.cost ?? e[k]?.cost_today ?? []).filter(Boolean);
+    const ids = ["electricity", "gas"].flatMap((k) => [...costIds(k), e[k]?.energy]).filter(Boolean);
     if (!ids.length) return;
     const today = midnight();
     const ask = (start, period, statistic_ids) => this._hass.callWS({ type: "recorder/statistics_during_period", start_time: start.toISOString(),
@@ -818,7 +822,8 @@ class ExpressiveKioskCard extends HTMLElement {
     const done = (rows) => (rows ?? []).filter((r) => new Date(r.start).getTime() < today.getTime());
     const changes = (id) => done(days[id]).map((r) => Math.max(0, Number(r.change) || 0));
     const sumOf = (id, n) => { const c = changes(id); return c.length ? c.slice(-n).reduce((a, b) => a + b, 0) : NaN; };
-    const part = (k) => ({ cost: [sumOf(e[k]?.cost_today, 1), sumOf(e[k]?.cost_today, 7)], energy: [sumOf(e[k]?.energy, 1), sumOf(e[k]?.energy, 7)] });
+    const costOf = (k, n) => { const ids = costIds(k); return ids.length ? ids.reduce((a, id) => a + sumOf(id, n), 0) : NaN; };
+    const part = (k) => ({ cost: [costOf(k, 1), costOf(k, 7)], energy: [sumOf(e[k]?.energy, 1), sumOf(e[k]?.energy, 7)] });
     const hourly = done(hours[e.electricity?.energy]).map((r) => ({ h: new Date(r.start).getHours(), v: Math.max(0, Number(r.change) || 0) }));
     this._stats = { electricity: part("electricity"), gas: part("gas"), hourly };
     this._render();

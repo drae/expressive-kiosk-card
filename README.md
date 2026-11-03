@@ -80,6 +80,9 @@ energy:
   power: sensor.electricity_power
   electricity:
     cost_today: sensor.electricity_cost_today
+    cost:
+      - sensor.electricity_import_cost
+      - sensor.electricity_standing_charge_cost
     energy_today: sensor.electricity_import_today
     energy: sensor.electricity_import
   gas:
@@ -130,7 +133,8 @@ Give every view the same options and change only `view`.
 | `camera.entity` / `camera.name` / `camera.refresh` | `refresh: 5` | The camera and the seconds between snapshots |
 | `camera.seen` | | `entity` and `name` of image entities with the latest picture of each object |
 | `energy.power` | | Power now, in kW or W |
-| `energy.electricity` / `energy.gas` | | `cost_today` (£, including standing charge), `energy_today` (kWh) and `energy` (cumulative kWh). Yesterday and the last 7 days come from the long-term statistics of `cost_today` and `energy` |
+| `energy.electricity` / `energy.gas` | | `cost_today` (£, including standing charge), `energy_today` (kWh) and `energy` (cumulative kWh). Yesterday and the last 7 days come from the long-term statistics of `cost` and `energy` |
+| `energy.electricity.cost` / `energy.gas.cost` | `cost_today` | One or more cumulative £ statistics, added up for past days. Use the ones the Energy dashboard uses (its grid cost and standing charge cost) so the figures match it. Without it, `cost_today`'s statistics are used, which need a `last_reset` to survive the midnight reset |
 | `energy.tariff` | | `rate` in pence outside the bands, and `bands` of `name`, `from`, `to`, `rate` and optional `color`. A band cheaper than `rate` is green, a dearer one orange |
 | `media.player` / `media.now_playing` | | The player, and the switch that opens Kiosk Satellite's now-playing screen |
 

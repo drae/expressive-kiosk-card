@@ -72,7 +72,8 @@ const hass = () => ({
   callWS: (msg) => {
     ws.push(msg);
     if (msg.period === "hour") return Promise.resolve({ "sensor.elec": Array.from({ length: 24 }, (_, h) => ({ start: at(h, 0, -1).getTime(), change: h >= 16 && h < 19 ? 1 : 0.25 })).concat({ start: at(0, 0).getTime(), change: 50 }) });
-    return Promise.resolve({ "sensor.elec_cost_today": dayRows([2, 2, 2, 2, 2, 2, 2.21]), "sensor.elec": dayRows([7, 7, 7, 7, 7, 7, -3700]),
+    return Promise.resolve({ "sensor.elec_cost_today": dayRows([9, 9, 9, 9, 9, 9, 9]), "sensor.elec_cost": dayRows([1.6, 1.6, 1.6, 1.6, 1.6, 1.6, 1.78]),
+      "sensor.elec_sc": dayRows([0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.43]), "sensor.elec": dayRows([7, 7, 7, 7, 7, 7, -3700]),
       "sensor.gas_cost_today": dayRows([1, 1, 1, 1, 1, 1, 1.16]), "sensor.gas": dayRows([10, 10, 10, 10, 10, 10, 14.8]) });
   },
   callApi: (m, path) => Promise.resolve(path.startsWith("calendars/calendar.bins") ? [
@@ -92,7 +93,7 @@ const base = {
   calendars: [{ entity: "calendar.home" }, { entity: "calendar.bins", strip: " collection", night_before: "Bin out tonight", colors: { recycling: "rgb(1,2,3)", food: "rgb(4,5,6)" } }],
   camera: { entity: "camera.front", name: "Front", refresh: 5, seen: [{ entity: "image.front_person", name: "Person" }] },
   energy: { power: "sensor.power",
-    electricity: { cost_today: "sensor.elec_cost_today", energy_today: "sensor.elec_today", energy: "sensor.elec" },
+    electricity: { cost_today: "sensor.elec_cost_today", cost: ["sensor.elec_cost", "sensor.elec_sc"], energy_today: "sensor.elec_today", energy: "sensor.elec" },
     gas: { cost_today: "sensor.gas_cost_today", energy_today: "sensor.gas_today", energy: "sensor.gas" },
     tariff: { rate: 20.85, bands: [{ name: "Cheap", from: "02:00", to: "05:00", rate: 15.36 }, { name: "Peak", from: "16:00", to: "19:00", rate: 40.49 }] } },
   media: { player: "media_player.show", now_playing: "switch.now_playing" },
@@ -244,7 +245,7 @@ const text = (el) => el?.textContent.replace(/\s+/g, " ").trim();
   ok(text($(c, ".ts-h .s")).startsWith("Using 352 W"), "power in watts from kW");
   ok(ws[0].start_time === at(0, 0, -7).toISOString() && ws[0].types[0] === "change", "statistics from local midnight 7 days ago");
   const cells = $$(c, ".etab .c").map((x) => x.textContent);
-  ok(JSON.stringify(cells.slice(0, 3)) === JSON.stringify(["45p", "£2.21", "£14.21"]), "electricity £: today, yesterday, 7 days");
+  ok(JSON.stringify(cells.slice(0, 3)) === JSON.stringify(["45p", "£2.21", "£14.21"]), "electricity £: today, then past days from the added-up cost statistics");
   ok(JSON.stringify(cells.slice(6, 9)) === JSON.stringify(["62p", "£3.37", "£21.37"]), "total row");
   click($(c, '[data-unit="kwh"]'));
   const kw = $$(c, ".etab .c").map((x) => x.textContent);
